@@ -125,14 +125,28 @@ export default function App() {
     try {
       const data = await api.getThoughts();
       const list = data || [];
-      const parsedData = list.map((t: any) => ({
-        ...t,
-        timestamp: new Date(t.timestamp),
-        responses: (t.responses || []).map((r: any) => ({
-          ...r,
-          timestamp: new Date(r.timestamp),
-        })),
-      }));
+      
+      let savedPositions: Record<string, { x: number; y: number }> = {};
+      try {
+        const raw = localStorage.getItem('ember_positions');
+        if (raw) savedPositions = JSON.parse(raw);
+      } catch (e) {
+        console.warn('Could not read ember_positions:', e);
+      }
+
+      const parsedData = list.map((t: any) => {
+        const saved = savedPositions[t.id];
+        return {
+          ...t,
+          x: saved ? saved.x : t.x,
+          y: saved ? saved.y : t.y,
+          timestamp: new Date(t.timestamp),
+          responses: (t.responses || []).map((r: any) => ({
+            ...r,
+            timestamp: new Date(r.timestamp),
+          })),
+        };
+      });
 
       // Merge: DB is the source of truth, but keep locally-added thoughts
       // that haven't been persisted yet so they don't vanish on the next poll.

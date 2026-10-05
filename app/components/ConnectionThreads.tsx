@@ -42,7 +42,8 @@ export const ConnectionThreads = React.memo(function ConnectionThreads({
       const a = thoughts[i];
       if (!a.emotion) continue;
 
-      // Find peers with the same emotion
+      // Find peers with the same emotion (scale down peer count when density is high)
+      const maxPeers = thoughts.length > 20 ? 1 : 2;
       const sameEmotionPeers = thoughts
         .filter(b => b.id !== a.id && b.emotion === a.emotion)
         .map(b => {
@@ -51,7 +52,7 @@ export const ConnectionThreads = React.memo(function ConnectionThreads({
           return { peer: b, distSq: dx * dx + dy * dy };
         })
         .sort((p1, p2) => p1.distSq - p2.distSq)
-        .slice(0, 2); // Connect to 2 nearest peers
+        .slice(0, maxPeers);
 
       for (const { peer: b } of sameEmotionPeers) {
         const key = [a.id, b.id].sort().join('__');
@@ -107,12 +108,13 @@ export const ConnectionThreads = React.memo(function ConnectionThreads({
         ))}
       </defs>
 
-      {threads.map(th => {
+      {threads.map((th, index) => {
         const isFocused = focusEmotion === th.emotion;
         const isDimmed = focusEmotion !== null && !isFocused;
         const isConnectedToHover = hoveredThoughtId === th.fromId || hoveredThoughtId === th.toId;
         const isConnectedToSelected = selectedThoughtId === th.fromId || selectedThoughtId === th.toId;
         const isHighlighted = isConnectedToHover || isConnectedToSelected || isFocused;
+        const canAnimateSpark = !isDimmed && (isHighlighted || index < 14);
 
         const strokeOpacity = isDimmed
           ? 0.04
@@ -148,7 +150,7 @@ export const ConnectionThreads = React.memo(function ConnectionThreads({
             />
 
             {/* Traveling warm spark along thread */}
-            {!isDimmed && (
+            {canAnimateSpark && (
               <g>
                 {/* Glow aura of spark */}
                 <circle r={isHighlighted ? 4 : 2.5} fill={th.color} opacity={isHighlighted ? 0.9 : 0.65}>

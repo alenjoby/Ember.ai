@@ -157,16 +157,35 @@ const floatAnimationStyles = `
   }
 `;
 
-const ThoughtCard = React.memo(function ThoughtCard({
-  thought, onClick, onReplyClick, onDragEnd, isGlowing, isHovered, scale, onHoverStart, onHoverEnd, tutorialStep = 'none',
-  dimmed = false, isNew = false
-}: {
-  thought: Thought; onClick: () => void; onReplyClick: (reply: ThoughtResponse) => void; onDragEnd: (x: number, y: number) => void;
-  isGlowing: boolean; isHovered: boolean; scale: number; onHoverStart: () => void; onHoverEnd: () => void;
+interface ThoughtCardProps {
+  thought: Thought;
+  onClick: (thought: Thought) => void;
+  onReplyClick: (thought: Thought, reply: ThoughtResponse) => void;
+  onDragEnd: (id: string, x: number, y: number) => void;
+  isGlowing: boolean;
+  isHovered: boolean;
+  getScale: () => number;
+  onHoverStart: (id: string) => void;
+  onHoverEnd: () => void;
   tutorialStep?: 'none' | 'hud' | 'star' | 'reply' | 'complete';
   dimmed?: boolean;
   isNew?: boolean;
-}) {
+}
+
+const ThoughtCard = React.memo(function ThoughtCard({
+  thought,
+  onClick,
+  onReplyClick,
+  onDragEnd,
+  isGlowing,
+  isHovered,
+  getScale,
+  onHoverStart,
+  onHoverEnd,
+  tutorialStep = 'none',
+  dimmed = false,
+  isNew = false,
+}: ThoughtCardProps) {
   const ageInHours = (new Date().getTime() - new Date(thought.timestamp).getTime()) / (1000 * 60 * 60);
   const targetOpacity = ageInHours > 20 ? Math.max(0.2, 1 - (ageInHours - 20) / 4) : 1;
 
@@ -175,33 +194,121 @@ const ThoughtCard = React.memo(function ThoughtCard({
   const delay = -(charSum % 5);
 
   const isTutorial = thought.id === 'thought-tutorial-1';
-  const isDraggingRef = useRef(false);
+
+  // Smooth pointer drag state without triggering full React tree re-renders
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+
+  const dragTrackingRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    initialX: number;
+    initialY: number;
+    moved: boolean;
+    worldDx: number;
+    worldDy: number;
+  } | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isTutorial || e.button !== 0) return;
+    // CRITICAL: Stop propagation so parent infinite canvas does NOT pan during lantern drag
+    e.stopPropagation();
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_) {}
+
+    dragTrackingRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: thought.x,
+      initialY: thought.y,
+      moved: false,
+      worldDx: 0,
+      worldDy: 0,
+    };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const tracking = dragTrackingRef.current;
+    if (!tracking || tracking.pointerId !== e.pointerId) return;
+    e.stopPropagation();
+
+    const dx = e.clientX - tracking.startX;
+    const dy = e.clientY - tracking.startY;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist > 3) {
+      if (!tracking.moved) {
+        tracking.moved = true;
+        setIsDragging(true);
+      }
+      const scale = getScale() || 1;
+      const worldDx = dx / scale;
+      const worldDy = dy / scale;
+      tracking.worldDx = worldDx;
+      tracking.worldDy = worldDy;
+      setDragOffset({ x: worldDx, y: worldDy });
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const tracking = dragTrackingRef.current;
+    if (!tracking || tracking.pointerId !== e.pointerId) return;
+    e.stopPropagation();
+
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+
+    const wasMoved = tracking.moved;
+    const finalX = Math.round(tracking.initialX + tracking.worldDx);
+    const finalY = Math.round(tracking.initialY + tracking.worldDy);
+
+    dragTrackingRef.current = null;
+    setIsDragging(false);
+    setDragOffset({ x: 0, y: 0 });
+
+    if (wasMoved) {
+      onDragEnd(thought.id, finalX, finalY);
+    } else {
+      onClick(thought);
+    }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    const tracking = dragTrackingRef.current;
+    if (!tracking || tracking.pointerId !== e.pointerId) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+    dragTrackingRef.current = null;
+    setIsDragging(false);
+    setDragOffset({ x: 0, y: 0 });
+  };
 
   return (
     <motion.div
-      drag={!isTutorial}
-      dragMomentum={false}
-      onDragStart={() => {
-        isDraggingRef.current = true;
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
+      className={`absolute cursor-grab active:cursor-grabbing select-none ${isDragging ? 'z-50 scale-105 shadow-2xl' : 'z-20'}`}
+      style={{
+        left: thought.x + dragOffset.x,
+        top: thought.y + dragOffset.y,
+        width: 250,
+        rotate: thought.rotation,
+        touchAction: 'none',
+        willChange: isDragging ? 'transform, left, top' : undefined,
       }}
-      onDragEnd={(_, info) => {
-        setTimeout(() => {
-          isDraggingRef.current = false;
-        }, 60);
-        onDragEnd(thought.x + info.offset.x / scale, thought.y + info.offset.y / scale);
-      }}
-      className="absolute cursor-grab active:cursor-grabbing z-20"
-      whileDrag={{ scale: 1.05, zIndex: 50 }}
-      style={{ left: thought.x, top: thought.y, width: 250, rotate: thought.rotation }}
       initial={{ opacity: 0, scale: 0.8, y: 35 }}
       animate={{ opacity: targetOpacity, scale: 1, y: 0 }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-      onClick={(e) => {
-        if (isDraggingRef.current || e.defaultPrevented) return;
-        onClick();
-      }}
-      onHoverStart={onHoverStart}
-      onHoverEnd={onHoverEnd}
+      onMouseEnter={() => onHoverStart(thought.id)}
+      onMouseLeave={onHoverEnd}
     >
       {isTutorial && tutorialStep === 'star' && (
         <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 z-50 pointer-events-none w-[240px]">
@@ -234,7 +341,7 @@ const ThoughtCard = React.memo(function ThoughtCard({
           isHovered={isHovered}
           dimmed={dimmed}
           isNew={isNew}
-          onReplyClick={onReplyClick}
+          onReplyClick={(reply) => onReplyClick(thought, reply)}
           width={250}
         />
       </div>
@@ -242,23 +349,111 @@ const ThoughtCard = React.memo(function ThoughtCard({
   );
 });
 
+/**
+ * High-performance 2D Canvas Star Field
+ * Replaces 600 separate animated DOM <div> nodes with a single GPU-backed canvas.
+ */
+const StarCanvas = React.memo(function StarCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-const STARS = Array.from({ length: 600 }, (_, i) => {
-  // Simple seeded pseudo-random layout to keep it consistent
-  const seed = i * 67.89;
-  const random = (s: number) => {
-    const x = Math.sin(s) * 10000;
-    return x - Math.floor(x);
-  };
-  const size = random(seed) < 0.12 ? 3 : random(seed + 1) < 0.45 ? 1 : 2; // 1px, 2px, or 3px
-  return {
-    id: i,
-    left: `${random(seed + 2) * 12000 - 6000}px`, // Distribute widely from -6000px to 6000px
-    top: `${random(seed + 3) * 12000 - 6000}px`,
-    size,
-    twinkleDuration: `${4 + random(seed + 4) * 5}s`,
-    twinkleDelay: `${-random(seed + 5) * 6}s`,
-  };
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = 4000;
+    const height = 4000;
+    canvas.width = width;
+    canvas.height = height;
+
+    interface StarPoint {
+      x: number;
+      y: number;
+      size: number;
+      phase: number;
+      speed: number;
+      isDiamond: boolean;
+    }
+
+    const starPoints: StarPoint[] = [];
+    for (let i = 0; i < 600; i++) {
+      const seed = i * 67.89;
+      const random = (s: number) => {
+        const x = Math.sin(s) * 10000;
+        return x - Math.floor(x);
+      };
+      const isDiamond = random(seed) < 0.12;
+      const size = isDiamond ? 3 : random(seed + 1) < 0.45 ? 1 : 1.8;
+      starPoints.push({
+        x: random(seed + 2) * width,
+        y: random(seed + 3) * height,
+        size,
+        phase: random(seed + 5) * Math.PI * 2,
+        speed: 0.0012 + random(seed + 4) * 0.002,
+        isDiamond,
+      });
+    }
+
+    let animId: number;
+    let lastTime = performance.now();
+
+    const draw = (now: number) => {
+      const dt = Math.min(now - lastTime, 100);
+      lastTime = now;
+
+      ctx.clearRect(0, 0, width, height);
+
+      for (let i = 0; i < starPoints.length; i++) {
+        const p = starPoints[i];
+        p.phase += p.speed * dt;
+        const alpha = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(p.phase));
+
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(2)})`;
+
+        if (p.isDiamond) {
+          ctx.beginPath();
+          const r = p.size * 2.2;
+          ctx.moveTo(p.x, p.y - r);
+          ctx.lineTo(p.x + r * 0.35, p.y);
+          ctx.lineTo(p.x + r, p.y);
+          ctx.lineTo(p.x + r * 0.35, p.y + r * 0.35);
+          ctx.lineTo(p.x, p.y + r);
+          ctx.lineTo(p.x - r * 0.35, p.y + r * 0.35);
+          ctx.lineTo(p.x - r, p.y);
+          ctx.lineTo(p.x - r * 0.35, p.y - r * 0.35);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      animId = requestAnimationFrame(draw);
+    };
+
+    animId = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(animId);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute pointer-events-none"
+      style={{
+        width: 4000,
+        height: 4000,
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%, -50%)',
+      }}
+    />
+  );
 });
 
 
@@ -349,6 +544,18 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
   const bgX = useTransform(panX, x => x * 0.12);
   const bgY = useTransform(panY, y => y * 0.12);
 
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
+  const getScale = useCallback(() => scaleRef.current, []);
+
+  const handleHoverStart = useCallback((id: string) => {
+    setHoveredThoughtId(id);
+  }, []);
+
+  const handleHoverEnd = useCallback(() => {
+    setHoveredThoughtId(null);
+  }, []);
+
   const emberCycleIndexRef = useRef(0);
 
   const handleCycleEmbers = useCallback(() => {
@@ -370,6 +577,9 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
     }, 2800);
   }, [thoughts, panX, panY]);
 
+  const pendingZoomRef = useRef(0);
+  const zoomRafRef = useRef<number | null>(null);
+
   const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
     const isPinch = e.ctrlKey || e.metaKey;
@@ -384,10 +594,17 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
     }
 
     if (zoomDelta !== 0) {
-      setScale(current => {
-        const next = Math.min(Math.max(current + zoomDelta, 0.25), 3.0);
-        return Math.round(next * 100) / 100;
-      });
+      pendingZoomRef.current += zoomDelta;
+      if (zoomRafRef.current === null) {
+        zoomRafRef.current = requestAnimationFrame(() => {
+          setScale(current => {
+            const next = Math.min(Math.max(current + pendingZoomRef.current, 0.25), 3.0);
+            pendingZoomRef.current = 0;
+            return Math.round(next * 100) / 100;
+          });
+          zoomRafRef.current = null;
+        });
+      }
     }
   }, []);
 
@@ -429,6 +646,7 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
     el.addEventListener('touchmove', handleTouchMove, { passive: false });
     el.addEventListener('touchend', handleTouchEnd, { passive: true });
     return () => {
+      if (zoomRafRef.current) cancelAnimationFrame(zoomRafRef.current);
       el.removeEventListener('wheel', handleWheel);
       el.removeEventListener('touchstart', handleTouchStart);
       el.removeEventListener('touchmove', handleTouchMove);
@@ -502,45 +720,7 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
           top: '50%',
         }}
       >
-        {STARS.map(star => {
-          if (star.size === 3) {
-            return (
-              <div
-                key={star.id}
-                className="absolute animate-twinkle pointer-events-none"
-                style={{
-                  left: star.left,
-                  top: star.top,
-                  width: '10px',
-                  height: '10px',
-                  marginLeft: '-5px',
-                  marginTop: '-5px',
-                  '--twinkle-duration': star.twinkleDuration,
-                  '--twinkle-delay': star.twinkleDelay,
-                } as React.CSSProperties}
-              >
-                <svg viewBox="0 0 24 24" className="w-full h-full text-white fill-current" style={{ filter: 'drop-shadow(0 0 4px rgba(255, 255, 255, 0.8))' }}>
-                  <path d="M12,2 L14.5,9.5 L22,12 L14.5,14.5 L12,22 L9.5,14.5 L2,12 L9.5,9.5 Z" />
-                </svg>
-              </div>
-            );
-          }
-          return (
-            <div
-              key={star.id}
-              className="absolute rounded-full bg-white animate-twinkle pointer-events-none"
-              style={{
-                left: star.left,
-                top: star.top,
-                width: `${star.size}px`,
-                height: `${star.size}px`,
-                boxShadow: `0 0 ${star.size * 2}px rgba(255, 255, 255, 0.9)`,
-                '--twinkle-duration': star.twinkleDuration,
-                '--twinkle-delay': star.twinkleDelay,
-              } as React.CSSProperties}
-            />
-          );
-        })}
+        <StarCanvas />
       </motion.div>
 
       {/* Shooting Stars (Viewport relative) */}
@@ -650,16 +830,16 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
               <ThoughtCard
                 key={thought.id}
                 thought={thought}
-                scale={scale}
-                onClick={() => onThoughtClick(thought)}
-                onReplyClick={(reply) => onReplyClick(thought, reply)}
-                onDragEnd={(x, y) => onThoughtMove(thought.id, x, y)}
+                getScale={getScale}
+                onClick={onThoughtClick}
+                onReplyClick={onReplyClick}
+                onDragEnd={onThoughtMove}
                 isGlowing={thought.aiStatus === 'replying' || aiGlowThoughtId === thought.id || (thought.id === 'thought-tutorial-1' && tutorialStep === 'star')}
                 isHovered={hoveredThoughtId === thought.id}
                 dimmed={isThoughtDimmed}
                 isNew={isThoughtNew}
-                onHoverStart={() => setHoveredThoughtId(thought.id)}
-                onHoverEnd={() => setHoveredThoughtId(null)}
+                onHoverStart={handleHoverStart}
+                onHoverEnd={handleHoverEnd}
                 tutorialStep={tutorialStep}
               />
             );
