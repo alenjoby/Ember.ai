@@ -73,7 +73,7 @@ const initialThoughts: Thought[] = (fixtureThoughts as any[]).map((t: any) => ({
 }));
 
 export default function App() {
-  const [thoughts, setThoughts] = useState<Thought[]>(initialThoughts);
+  const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [activeView, setActiveView] = useState<ActiveView>('space');
   const [selectedThought, setSelectedThought] = useState<Thought | null>(null);
   const [selectedReply, setSelectedReply] = useState<ThoughtResponse | null>(null);
@@ -109,16 +109,7 @@ export default function App() {
   // Fetch thoughts — reads directly from the KV table to avoid edge function cold-start/EPIPE issues
   const fetchThoughts = useCallback(async () => {
     try {
-      const response = await fetch(`${SERVER_URL}/thoughts`, {
-        method: 'GET',
-        headers: {
-          'apikey': publicAnonKey,
-          'Authorization': `Bearer ${publicAnonKey}`
-        }
-      });
-      if (!response.ok) throw new Error(`Fetch error: ${response.status}`);
-      const data = await response.json();
-
+      const data = await api.getThoughts();
       const list = data || [];
       const parsedData = list.map((t: any) => ({
         ...t,
@@ -142,24 +133,14 @@ export default function App() {
         return [...parsedData, ...localOnly];
       });
     } catch (err) {
-      console.warn('Live API unavailable or empty, populating initial fixture lanterns:', err);
-      // Fallback to rich fixtures
-      const parsedFixtures = (fixtureThoughts as any[]).map((t: any) => ({
-        ...t,
-        timestamp: new Date(t.timestamp),
-        responses: (t.responses || []).map((r: any) => ({
-          ...r,
-          timestamp: new Date(r.timestamp),
-        })),
-      }));
-      setThoughts(prev => (prev.length > 0 ? prev : parsedFixtures));
+      console.warn('API getThoughts failed:', err);
     } finally {
       if (loadingRef.current) {
         loadingRef.current = false;
         setLoading(false);
       }
     }
-  }, []);
+  }, [anonUserId]);
 
   useEffect(() => {
     fetchThoughts();
@@ -178,7 +159,7 @@ export default function App() {
       }, 300);
     };
 
-    // Subscribe to thoughts and replies table changes (F1 spec), fallback to kv_store
+    // Subscribe to thoughts and replies table changes (F1 spec)
     const channel = supabase
       .channel('realtime-thoughts')
       .on(
@@ -190,52 +171,6 @@ export default function App() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'replies' },
         () => triggerDebouncedFetch()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'kv_store_9b55d09a' },
-        (payload) => {
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const row = payload.new as { key: string; value: any };
-            if (row.key && row.key.startsWith('thought:')) {
-              const thought = row.value;
-              const formattedThought: Thought = {
-                ...thought,
-                timestamp: new Date(thought.timestamp),
-                responses: (thought.responses || []).map((r: any) => ({
-                  ...r,
-                  timestamp: new Date(r.timestamp),
-                })),
-              };
-              setThoughts((prev) => {
-                const index = prev.findIndex((t) => t.id === formattedThought.id);
-                if (index !== -1) {
-                  const updated = [...prev];
-                  updated[index] = formattedThought;
-                  return updated;
-                } else {
-                  if (!loadingRef.current && formattedThought.authorId !== anonUserId) {
-                    setActiveToast({
-                      id: formattedThought.id,
-                      thought: formattedThought,
-                    });
-                    
-                    setTimeout(() => {
-                      setActiveToast(current => current?.id === formattedThought.id ? null : current);
-                    }, 8000);
-                  }
-                  return [...prev, formattedThought];
-                }
-              });
-            }
-          } else if (payload.eventType === 'DELETE') {
-            const oldRow = payload.old as { key: string };
-            if (oldRow && oldRow.key && oldRow.key.startsWith('thought:')) {
-              const id = oldRow.key.substring('thought:'.length);
-              setThoughts((prev) => prev.filter((t) => t.id !== id));
-            }
-          }
-        }
       )
       .subscribe();
 
@@ -290,7 +225,8 @@ export default function App() {
       setSelectedThought(null);
 
       const token = getOwnerToken(thoughtId) || '';
-      await api.deleteThought(thoughtId, token);
+      const adminToken = localStorage.getItem('ember_admin_token') || undefined;
+      await api.deleteThought(thoughtId, token, adminToken);
     } catch (err) {
       console.error("Error deleting thought:", err);
       fetchThoughts();
@@ -317,7 +253,8 @@ export default function App() {
       });
 
       const token = getOwnerToken(replyId) || '';
-      await api.deleteReply(thoughtId, replyId, token);
+      const adminToken = localStorage.getItem('ember_admin_token') || undefined;
+      await api.deleteReply(thoughtId, replyId, token, adminToken);
     } catch (err) {
       console.error("Error deleting reply:", err);
       fetchThoughts();
@@ -403,6 +340,7 @@ export default function App() {
     } catch (err: any) {
       console.error('Error creating thought:', err);
       alert(err.message || 'Network error while releasing thought.');
+      throw err;
     }
   }, [anonUserId]);
 
@@ -466,6 +404,7 @@ export default function App() {
     } catch (err: any) {
       console.error('Error adding reply:', err);
       alert(err.message || 'Failed to send reply.');
+      throw err;
     }
   }, [anonUserId]);
 
