@@ -188,7 +188,8 @@ export default function App() {
   // Dev-only demo toggle: admin passcode once per session -> admin token -> POST /demo
   const toggleDemo = useCallback(async () => {
     const headers = { apikey: publicAnonKey, Authorization: `Bearer ${publicAnonKey}`, 'Content-Type': 'application/json' };
-    let adminToken = sessionStorage.getItem('ember_demo_admin_token');
+    // Reuse the admin login (logo double-click) if there is one.
+    let adminToken = localStorage.getItem('ember_admin_token') || sessionStorage.getItem('ember_demo_admin_token');
     if (!adminToken) {
       const passcode = prompt('Admin passcode to switch demo mode:');
       if (!passcode) return;
@@ -205,7 +206,12 @@ export default function App() {
     });
     if (res.status === 403) {
       sessionStorage.removeItem('ember_demo_admin_token'); // expired token: ask again next click
+      localStorage.removeItem('ember_admin_token');
       alert('Admin session expired, click again.');
+      return;
+    }
+    if (res.status === 409) {
+      alert('Demo is switched off on the server (DEMO_MODE=false). Set it to true to use this button.');
       return;
     }
     const data = await res.json().catch(() => null);
@@ -299,7 +305,14 @@ export default function App() {
 
       const token = getOwnerToken(thoughtId) || '';
       const adminToken = localStorage.getItem('ember_admin_token') || undefined;
-      await api.deleteThought(thoughtId, token, adminToken);
+      const ok = await api.deleteThought(thoughtId, token, adminToken);
+      if (!ok) {
+        // Removed optimistically above: put it back and say why.
+        fetchThoughts();
+        alert(adminToken
+          ? "Couldn't delete. Your admin session may have expired: double-click the logo to log out and back in."
+          : "Couldn't delete this thought.");
+      }
     } catch (err) {
       console.error("Error deleting thought:", err);
       fetchThoughts();
@@ -327,7 +340,13 @@ export default function App() {
 
       const token = getOwnerToken(replyId) || '';
       const adminToken = localStorage.getItem('ember_admin_token') || undefined;
-      await api.deleteReply(thoughtId, replyId, token, adminToken);
+      const ok = await api.deleteReply(thoughtId, replyId, token, adminToken);
+      if (!ok) {
+        fetchThoughts();
+        alert(adminToken
+          ? "Couldn't delete. Your admin session may have expired: double-click the logo to log out and back in."
+          : "Couldn't delete this reply.");
+      }
     } catch (err) {
       console.error("Error deleting reply:", err);
       fetchThoughts();
