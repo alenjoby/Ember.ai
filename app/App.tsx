@@ -520,19 +520,64 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="w-full h-[100dvh] flex flex-col items-center justify-center bg-[#050308] gap-6">
-        <div className="relative flex items-center justify-center">
-          {/* Gentle pulse aura behind the logo */}
-          <div className="absolute w-24 h-24 bg-[#D66A3E]/15 rounded-full blur-xl animate-pulse" />
-          <img 
-            src="https://i.imgur.com/5nagvWz.png" 
-            alt="Ember Logo" 
-            className="h-24 w-auto object-contain relative z-10"
+      <div className="w-full h-[100dvh] flex flex-col items-center justify-center bg-[#050308] gap-6 select-none">
+        <div className="relative flex flex-col items-center justify-center">
+          {/* Breathing flame aura */}
+          <motion.div
+            className="absolute w-32 h-32 rounded-full pointer-events-none"
+            style={{
+              background: 'radial-gradient(circle, rgba(214,106,62,0.35) 0%, rgba(214,106,62,0.08) 50%, transparent 75%)',
+            }}
+            animate={{
+              scale: [0.85, 1.25, 0.85],
+              opacity: [0.5, 0.9, 0.5],
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
           />
+
+          {/* Breathing flame icon / logo */}
+          <motion.div
+            animate={{
+              scale: [0.95, 1.05, 0.95],
+              filter: [
+                'drop-shadow(0 0 12px rgba(214,106,62,0.4))',
+                'drop-shadow(0 0 28px rgba(214,106,62,0.8))',
+                'drop-shadow(0 0 12px rgba(214,106,62,0.4))',
+              ],
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+            className="relative z-10 flex flex-col items-center"
+          >
+            <img 
+              src="https://i.imgur.com/5nagvWz.png" 
+              alt="Ember Logo" 
+              className="h-20 w-auto object-contain"
+            />
+          </motion.div>
         </div>
-        <div className="w-20 h-[2px] bg-white/10 rounded-full overflow-hidden relative">
-          <div className="absolute top-0 left-0 h-full bg-[#D66A3E] w-1/2 rounded-full animate-[loading-bar_1.5s_infinite_ease-in-out]" />
+
+        <div className="flex flex-col items-center gap-2 relative z-10">
+          <motion.p
+            className="text-[#f9f3eb] text-[16px] tracking-wide"
+            style={{ fontFamily: "'Alegreya', serif", fontWeight: 400 }}
+            animate={{ opacity: [0.6, 1, 0.6] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            lighting the lanterns…
+          </motion.p>
+          <div className="w-24 h-[2px] bg-white/10 rounded-full overflow-hidden relative">
+            <div className="absolute top-0 left-0 h-full bg-[#D66A3E] w-1/2 rounded-full animate-[loading-bar_1.6s_infinite_ease-in-out]" />
+          </div>
         </div>
+
         <style dangerouslySetInnerHTML={{__html: `
           @keyframes loading-bar {
             0% { left: -50%; }

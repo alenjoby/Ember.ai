@@ -644,7 +644,7 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
       <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] rounded-[18px] overflow-hidden">
         <img
           src={response.drawingData}
-          alt="Drawing response"
+          alt="A drawing reply"
           className="w-full max-h-[200px] object-contain invert-[0.85] hue-rotate-180" // Quick invert hack to make drawings look better on dark
         />
         <div className="px-4 py-2 border-t border-[rgba(255,255,255,0.05)] flex items-center justify-between">
@@ -910,7 +910,12 @@ export function ThoughtDetailModal({ thought, onClose, onAddResponse, onOpenDraw
           </div>
 
           {/* Responses */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 sm:px-6 min-h-0 max-w-full">
+          <div
+            className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 sm:px-6 min-h-0 max-w-full"
+            aria-live="polite"
+            role="log"
+            aria-label="Responses"
+          >
             {thought.responses.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center opacity-80">
                 <Leaf size={34} className="mb-3 text-[#10b981] drop-shadow-[0_0_15px_rgba(16,185,129,0.4)]" />
