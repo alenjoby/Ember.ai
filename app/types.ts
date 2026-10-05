@@ -25,7 +25,7 @@ export interface Lantern {
     key: string;                          // e.g. "D minor", "G major"
     tempo: number;                        // 40..90 bpm
   };
-  caption: string;                        // <= 6 words
+  caption?: string;                       // optional <= 6 words
 }
 
 export interface Thought {

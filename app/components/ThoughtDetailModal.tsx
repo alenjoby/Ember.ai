@@ -902,11 +902,6 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
                       {thought.emotion} · {thought.lantern.shape}
                     </span>
                   )}
-                  {thought.lantern.caption && (
-                    <span className="text-[12px] text-[#e8cdb8]/90 italic truncate" style={{ fontFamily: "'Alegreya', serif" }}>
-                      "{thought.lantern.caption}"
-                    </span>
-                  )}
                 </div>
               )}
 

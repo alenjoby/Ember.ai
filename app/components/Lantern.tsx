@@ -177,10 +177,11 @@ function LanternSvg({
 }
 
 /**
- * Option 1: Firefly Embers surrounding the lantern flame.
- * Each response hovers gently like an ember caught on rising warm air.
+ * Orbiting Replies around the Lantern vessel.
+ * Each response orbits smoothly in an elliptical path around the lantern flame,
+ * passing behind and in front of the lamp with realistic 3D depth and subtle floating bob.
  */
-function FireflyEmbers({
+function OrbitingReplies({
   responses,
   isHovered,
   glowColor,
@@ -192,51 +193,55 @@ function FireflyEmbers({
   onReplyClick?: (reply: ThoughtResponse) => void;
 }) {
   const visibleReplies = responses.slice(0, 6);
+  const total = visibleReplies.length;
 
-  // Pre-calculated organic hover positions around the lantern vessel
-  const emberOffsets = [
-    { x: -68, y: -25, bobDur: 3.2, delay: 0 },
-    { x: 68, y: -15, bobDur: 3.7, delay: 0.4 },
-    { x: -74, y: 35, bobDur: 4.1, delay: 0.8 },
-    { x: 74, y: 45, bobDur: 3.5, delay: 0.2 },
-    { x: -52, y: 85, bobDur: 3.9, delay: 1.1 },
-    { x: 52, y: 95, bobDur: 4.4, delay: 0.6 },
-  ];
+  // Semi-major and semi-minor axes of the elliptical orbit around the lantern
+  const rx = isHovered ? 92 : 76;
+  const ry = isHovered ? 48 : 38;
 
   return (
     <div className="absolute inset-0 pointer-events-none z-30">
       {visibleReplies.map((reply, index) => {
-        const offset = emberOffsets[index % emberOffsets.length];
-        const expandFactor = isHovered ? 1.25 : 1.0;
-        const targetX = offset.x * expandFactor;
-        const targetY = offset.y * expandFactor;
+        const startPhase = (index / total) * (2 * Math.PI);
+        const orbitDuration = 18 + (index % 3) * 3; // 18s - 24s graceful serene orbit
+
+        // 16 keyframes for smooth circular/elliptical interpolation
+        const STEPS = 16;
+        const xKeyframes: string[] = [];
+        const yKeyframes: string[] = [];
+        const scaleKeyframes: number[] = [];
+        const opacityKeyframes: number[] = [];
+        const zIndexKeyframes: number[] = [];
+
+        for (let s = 0; s <= STEPS; s++) {
+          const angle = startPhase + (s / STEPS) * (2 * Math.PI);
+          const x = Math.round(Math.cos(angle) * rx);
+          const y = Math.round(Math.sin(angle) * ry);
+          const inFront = Math.sin(angle) >= 0;
+
+          xKeyframes.push(`calc(-50% + ${x}px)`);
+          yKeyframes.push(`calc(-50% + ${y}px)`);
+          scaleKeyframes.push(inFront ? (isHovered ? 1.2 : 1.05) : (isHovered ? 0.95 : 0.82));
+          opacityKeyframes.push(inFront ? 1.0 : 0.72);
+          zIndexKeyframes.push(inFront ? 35 : 5);
+        }
 
         return (
           <motion.div
             key={reply.id}
             className="absolute left-1/2 top-1/2 pointer-events-auto cursor-pointer"
             style={{ x: '-50%', y: '-50%' }}
-            initial={{ scale: 0, opacity: 0 }}
             animate={{
-              x: `calc(-50% + ${targetX}px)`,
-              y: [
-                `calc(-50% + ${targetY}px)`,
-                `calc(-50% + ${targetY - 8}px)`,
-                `calc(-50% + ${targetY}px)`,
-              ],
-              scale: isHovered ? 1.12 : 1,
-              opacity: 1,
+              x: xKeyframes,
+              y: yKeyframes,
+              scale: scaleKeyframes,
+              opacity: opacityKeyframes,
+              zIndex: zIndexKeyframes,
             }}
             transition={{
-              y: {
-                duration: offset.bobDur,
-                repeat: Infinity,
-                ease: 'easeInOut',
-                delay: offset.delay,
-              },
-              x: { duration: 0.35, ease: 'easeOut' },
-              scale: { duration: 0.25 },
-              opacity: { duration: 0.4 },
+              duration: orbitDuration,
+              repeat: Infinity,
+              ease: 'linear',
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -244,8 +249,9 @@ function FireflyEmbers({
             }}
             title={reply.type === 'note' ? reply.content : `${reply.type} reply`}
           >
-            <div
-              className="relative flex items-center justify-center rounded-full bg-[rgba(15,10,18,0.92)] border border-[rgba(255,255,255,0.25)] backdrop-blur-md p-1.5 transition-all duration-200 hover:scale-125 shadow-lg"
+            <motion.div
+              className="relative flex items-center justify-center rounded-full bg-[rgba(15,10,18,0.92)] border border-[rgba(255,255,255,0.25)] backdrop-blur-md p-1.5 transition-all duration-200 shadow-lg"
+              whileHover={{ scale: 1.3 }}
               style={{
                 boxShadow: isHovered
                   ? `0 0 16px ${glowColor}, inset 0 0 8px ${glowColor}`
@@ -273,7 +279,7 @@ function FireflyEmbers({
                   <Feather size={12} className="text-amber-200" />
                 )}
               </div>
-            </div>
+            </motion.div>
           </motion.div>
         );
       })}
@@ -436,9 +442,9 @@ export function Lantern({
           />
         </motion.div>
 
-        {/* Firefly Embers (Option 1 Responses) floating around the lamp */}
+        {/* Orbiting Replies floating around the lamp */}
         {responses.length > 0 && (
-          <FireflyEmbers
+          <OrbitingReplies
             responses={responses}
             isHovered={isHovered ?? false}
             glowColor={glowColor}
@@ -486,16 +492,6 @@ export function Lantern({
         >
           {text}
         </p>
-
-        {/* Poetic caption */}
-        {resolved.caption && (
-          <span
-            className="mt-1 text-[11px] text-[#e8cdb8]/80 italic tracking-wide transition-opacity duration-300"
-            style={{ fontFamily: "'Alegreya', serif", textShadow: '0 1px 4px rgba(0,0,0,0.7)' }}
-          >
-            "{resolved.caption}"
-          </span>
-        )}
 
         {/* AI Replying Whisper */}
         <AnimatePresence>
