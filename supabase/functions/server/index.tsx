@@ -17,7 +17,7 @@ import {
   VARIANTS,
 } from "./db.ts";
 import { helplineFor } from "./helplines.ts";
-import { AiUnavailableError, aiConfigured, generate } from "./llm.ts";
+import { AiUnavailableError, aiConfigured, generate, probeFeatherless } from "./llm.ts";
 import { moderateImage, moderateText, moderateVoice, VoiceUnclearError } from "./moderation.ts";
 import { detectNegativity } from "./safeSpace.ts";
 import { isRateLimited } from "./rateLimit.ts";
@@ -157,6 +157,7 @@ app.notFound((c) => fail(c, 404, "not_found", "Nothing here."));
 // ?deep=1 makes one small real LLM call and reports timing or a short error (never the key)
 app.get("/health", async (c) => {
   if (!aiConfigured()) return c.json({ ok: true, ai: "down" });
+  if (c.req.query("deep") === "featherless") return c.json({ ok: true, featherless: await probeFeatherless() });
   if (c.req.query("deep") !== "1") return c.json({ ok: true, ai: "up" });
   const t0 = Date.now();
   try {

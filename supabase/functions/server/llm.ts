@@ -72,7 +72,13 @@ async function callModel(model: string, apiKey: string, parts: Part[], opts: Gen
     if (res.status >= 500) throw new RetryableError(msg, 15_000);
     throw new Error(msg);
   }
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    // The timeout can fire while the body is still streaming in.
+    throw new RetryableError(`${model}: ${(err as Error).name} reading response`, 30_000);
+  }
   const text = (data.candidates?.[0]?.content?.parts ?? [])
     .map((p: { text?: string }) => p.text ?? "")
     .join("")
@@ -130,16 +136,36 @@ async function featherless(prompt: string, opts: GenerateOptions, timeoutMs: num
     // 429 here is usually the plan's concurrency limit: short rest. 401/402 (key/credits): long rest.
     throw new RetryableError(msg, res.status === 429 ? 5_000 : res.status >= 500 ? 15_000 : 300_000);
   }
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    // The timeout can fire while the body is still streaming in.
+    throw new RetryableError(`${model}: ${(err as Error).name} reading response`, 30_000);
+  }
   const text = (data.choices?.[0]?.message?.content ?? "").trim();
   if (!text) throw new RetryableError("featherless returned no text");
   return text;
 }
 
+/** Health probe: one direct Featherless call, returns latency or a short error. */
+export async function probeFeatherless(): Promise<{ ms?: number; error?: string }> {
+  if (!Deno.env.get("FEATHERLESS_API_KEY")) return { error: "FEATHERLESS_API_KEY not set" };
+  const t0 = Date.now();
+  try {
+    await featherless('Return JSON only: {"ok": true}', { json: true, maxOutputTokens: 20, timeoutMs: 30000 }, 30000);
+    return { ms: Date.now() - t0 };
+  } catch (err) {
+    return { error: (err as Error).message.slice(0, 300) };
+  }
+}
+
 /** Text-only generation: Featherless first, Gemini as backup, within one time budget. */
 export async function generate(prompt: string, opts: GenerateOptions): Promise<string> {
   const hasFeatherless = !!Deno.env.get("FEATHERLESS_API_KEY");
-  const hasGemini = !!Deno.env.get("GEMINI_API_KEY");
+  // Gemini only counts as a backup if one of its models isn't resting (e.g. after a quota 429).
+  const hasGemini = !!Deno.env.get("GEMINI_API_KEY") &&
+    models().some((m) => (restingUntil.get(m) ?? 0) <= Date.now());
   if (!hasFeatherless && !hasGemini) throw new AiUnavailableError();
 
   const deadline = Date.now() + opts.timeoutMs;
