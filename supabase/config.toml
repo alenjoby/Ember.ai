@@ -415,5 +415,7 @@ enabled = true
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
 
 [functions.server]
-# The browser calls with the anon key as Bearer token (a valid JWT).
-verify_jwt = true
+# The project uses an sb_publishable_ key (not a JWT), so the gateway must not verify JWTs.
+# Every write is still protected by the function itself (validation, moderation, rate limits,
+# owner/admin tokens) and by RLS.
+verify_jwt = false
