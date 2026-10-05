@@ -1,5 +1,4 @@
-// LLM access. Gemini only for now; keep calls behind these helpers so an
-// OpenAI-compatible provider (Featherless) can be added via LLM_PROVIDER later.
+// LLM access (Gemini). All model calls go through these helpers.
 
 export class AiUnavailableError extends Error {
   constructor(message = "AI key not configured") {
