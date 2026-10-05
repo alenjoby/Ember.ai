@@ -27,7 +27,12 @@ export interface SafeSpaceResult {
 const CRISIS_PATTERNS: RegExp[] = [
   /\b(suicide|self[\s-]*harm|cut\s*myself|end\s*(my|it)\s*all)\b/i,
   /\bk[i1]ll\s*myself\b/i,
-  /\b(want\s*to\s*die|can'?t\s*do\s*this\s*anymore|giving\s*up\s*on\s*life)\b/i
+  /\b(want\s*to\s*die|can'?t\s*do\s*this\s*anymore|giving\s*up\s*on\s*life)\b/i,
+  // Server-only additions (indirect warning signs). Sync to the client copy when convenient.
+  /\b(better\s*off\s*(without\s*me|dead|if\s*i\s*(was|were)n'?t\s*here)|everyone\s*(will|would)\s*be\s*better\s*off)\b/i,
+  /\bgiving\s*(away\s*)?(all\s*)?my\s*(things|stuff|belongings)\s*away\b|\bgiving\s*away\s*(all\s*)?my\s*(things|stuff|belongings)\b/i,
+  /\b(no\s*reason\s*to\s*(live|go\s*on)|don'?t\s*want\s*to\s*(be\s*here|exist|wake\s*up)(\s*anymore)?|wish\s*i\s*(was|were)\s*n'?t\s*(alive|here|born))\b/i,
+  /\b(end\s*my\s*life|take\s*my\s*(own\s*)?life|not\s*be\s*around\s*much\s*longer|say(ing)?\s*goodbye\s*(to\s*everyone|forever))\b/i,
 ];
 
 const TOXIC_PATTERNS: { pattern: RegExp; weight: number; category: string }[] = [

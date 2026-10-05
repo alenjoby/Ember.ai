@@ -61,8 +61,9 @@ const EMOTION_HINTS: [Emotion, RegExp][] = [
   ["lonely", /\b(lonely|alone|no one|nobody|invisible|isolated|empty|by myself)\b/i],
   ["grateful", /\b(grateful|thankful|thank you|thanks|blessed|appreciate)\b/i],
   ["joyful", /\b(happy|so excited|yay|finally|got the|best day|love this|laughing)\b|!!/i],
-  ["hopeful", /\b(hope|hopeful|someday|tomorrow|starting|new beginning|one day at a time|trying|better)\b/i],
+  ["hopeful", /\b(hope|hopeful|someday|starting over|new beginning|one day at a time|first step)\b/i],
 ];
+const BRIGHT: Emotion[] = ["hopeful", "joyful", "grateful"];
 
 export function guessEmotion(text: string): Emotion | null {
   for (const [emotion, re] of EMOTION_HINTS) if (re.test(text)) return emotion;
@@ -144,7 +145,12 @@ Return JSON only, exactly this shape:
  * Background task: fill thoughts.lantern, and thoughts.emotion when the writer left it
  * untagged (so the thought joins its constellation). Never throws.
  */
-export async function generateLantern(id: string, text: string, tagged?: string | null): Promise<void> {
+export async function generateLantern(
+  id: string,
+  text: string,
+  tagged?: string | null,
+  isCrisis = false,
+): Promise<void> {
   const emotion = isEmotion(tagged) ? tagged : null;
   let result: { lantern: Lantern; emotion: Emotion | null };
   try {
@@ -153,6 +159,10 @@ export async function generateLantern(id: string, text: string, tagged?: string 
     console.warn("[lantern] LLM failed, using preset:", (err as Error).message);
     const guessed = emotion ?? guessEmotion(text);
     result = { lantern: fallbackLantern(guessed), emotion: guessed };
+  }
+  // Never label a crisis thought as a bright feeling the writer didn't choose.
+  if (isCrisis && !emotion && result.emotion && BRIGHT.includes(result.emotion)) {
+    result = { lantern: fallbackLantern(null), emotion: null };
   }
   const update: Record<string, unknown> = { lantern: result.lantern };
   if (!emotion && result.emotion) update.emotion = result.emotion;
