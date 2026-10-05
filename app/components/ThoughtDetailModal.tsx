@@ -9,7 +9,7 @@ import {
 import type { Thought, ThoughtResponse } from '../App';
 import { projectId, publicAnonKey } from '../../supabase/info';
 import { ScreenGlow } from './ScreenGlow';
-import { StickerIcon } from './StickerIcon';
+import { StickerIcon as BaseStickerIcon } from './StickerIcon';
 import { detectNegativity, getVoiceReminder } from '../safeSpace';
 import { SafeSpaceGuard, SafeSpaceInline } from './SafeSpaceGuard';
 import { AiLabel } from './AiLabel';
@@ -82,7 +82,7 @@ const EMOJI_TO_ICON: Record<string, string> = {
 
 function StickerIcon({ nameOrEmoji, size = 24, className }: { nameOrEmoji: string; size?: number; className?: string }) {
   const iconName = EMOJI_TO_ICON[nameOrEmoji] || nameOrEmoji;
-  return <StickerIcon name={iconName} size={size} className={className} />;
+  return <BaseStickerIcon name={iconName} size={size} className={className} />;
 }
 
 function relativeTime(date: Date): string {

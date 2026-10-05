@@ -61,8 +61,17 @@ const getRandomOffset = (range: number) => (Math.random() - 0.5) * range;
 type ActiveView = 'space' | 'compose' | 'thoughtDetail' | 'history' | 'replyDetail';
 type TutorialStep = 'none' | 'hud' | 'star' | 'reply' | 'complete';
 
+const initialThoughts: Thought[] = (fixtureThoughts as any[]).map((t: any) => ({
+  ...t,
+  timestamp: new Date(t.timestamp),
+  responses: (t.responses || []).map((r: any) => ({
+    ...r,
+    timestamp: new Date(r.timestamp),
+  })),
+}));
+
 export default function App() {
-  const [thoughts, setThoughts] = useState<Thought[]>([]);
+  const [thoughts, setThoughts] = useState<Thought[]>(initialThoughts);
   const [activeView, setActiveView] = useState<ActiveView>('space');
   const [selectedThought, setSelectedThought] = useState<Thought | null>(null);
   const [selectedReply, setSelectedReply] = useState<ThoughtResponse | null>(null);
