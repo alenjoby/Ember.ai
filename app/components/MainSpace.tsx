@@ -298,7 +298,7 @@ const ThoughtCard = React.memo(function ThoughtCard({
     <div
       ref={cardRef}
       onPointerDown={handlePointerDown}
-      className={`absolute select-none ${isDragging ? 'z-50 shadow-2xl cursor-grabbing' : 'z-20 cursor-grab'}`}
+      className={`absolute select-none outline-none ${isDragging ? 'z-50 cursor-grabbing' : 'z-20 cursor-grab'}`}
       style={{
         left: thought.x,
         top: thought.y,
@@ -306,6 +306,7 @@ const ThoughtCard = React.memo(function ThoughtCard({
         // transform is owned by the drag code / layout effect above, not set here,
         // so React re-renders never overwrite an in-progress drag position.
         touchAction: 'none',
+        WebkitTapHighlightColor: 'transparent', // no grey tap box on mobile
         // The 250px card box itself ignores the pointer; only the lantern vessel, text and reply
         // chips (pointer-events-auto in Lantern) grab it. With 40+ lanterns the boxes covered
         // nearly the whole canvas, so pressing "empty" space dragged a lantern instead of panning.
