@@ -105,7 +105,8 @@ async function elevenLabsTts(text: string): Promise<Uint8Array | null> {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Background task: wait, then reply as Ember unless a human answered first. Never throws. */
-export async function scheduleAiReply(id: string): Promise<void> {
+/** useLlm=false (demo autopilot) uses the emotion-matched fallback reply to save LLM quota. */
+export async function scheduleAiReply(id: string, useLlm = true): Promise<void> {
   await sleep(Number(Deno.env.get("AI_REPLY_DELAY_MS") ?? 20000));
 
   // Claim the thought atomically: only proceed if still 'waiting'.
@@ -122,6 +123,7 @@ export async function scheduleAiReply(id: string): Promise<void> {
   let content: string;
   let audioUrl: string | null = null;
   try {
+    if (!useLlm) throw new Error("LLM skipped (demo thought)");
     const prompt = claimed.show_help ? crisisPrompt(claimed.text) : supportPrompt(claimed.text, claimed.emotion);
     content = cleanReply(await gemini([{ text: prompt }], { temperature: 0.9, maxOutputTokens: 300, timeoutMs: 20000 }));
     if (!content) throw new Error("empty reply");

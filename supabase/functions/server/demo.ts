@@ -170,8 +170,9 @@ export async function demoAutopilotTick(): Promise<void> {
   if (insErr) return console.warn("[demo] autopilot insert failed:", insErr.message);
 
   await Promise.all([
-    generateLantern(row.id, text, emotion),
+    // Autopilot thoughts skip the LLM (preset lantern + canned reply) so the demo can run for hours on a free key.
+    generateLantern(row.id, text, emotion, false, false),
     scheduleDemoReplies(row.id, emotion),
-    scheduleAiReply(row.id),
+    scheduleAiReply(row.id, false),
   ]);
 }

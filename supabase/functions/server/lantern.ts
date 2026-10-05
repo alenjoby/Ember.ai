@@ -150,10 +150,12 @@ export async function generateLantern(
   text: string,
   tagged?: string | null,
   isCrisis = false,
+  useLlm = true, // false for demo autopilot thoughts: preset lantern, saves LLM quota
 ): Promise<void> {
   const emotion = isEmotion(tagged) ? tagged : null;
   let result: { lantern: Lantern; emotion: Emotion | null };
   try {
+    if (!useLlm) throw new Error("LLM skipped (demo thought)");
     result = await askLantern(text, emotion);
   } catch (err) {
     console.warn("[lantern] LLM failed, using preset:", (err as Error).message);
