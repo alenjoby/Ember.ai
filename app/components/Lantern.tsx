@@ -63,6 +63,53 @@ const EMOJI_TO_ICON: Record<string, string> = {
   'Flower': 'sticker_flower',
 };
 
+// Performance: every looping lantern animation is a CSS keyframe animation on transform/opacity,
+// so the browser runs it on the GPU compositor. The previous framer-motion `repeat: Infinity`
+// animations ran in JavaScript every frame (x3 per lantern, x5 props per orbiting reply), which
+// made the canvas crawl with 40+ lanterns. Injected once per page.
+const LANTERN_CSS = `
+@keyframes lantern-halo {
+  0%, 100% { opacity: var(--o1); transform: translateX(-50%) scale(0.95); }
+  50% { opacity: var(--o2); transform: translateX(-50%) scale(1.08); }
+}
+@keyframes lantern-glow {
+  0%, 100% { opacity: 0.4; transform: translateX(-50%) scale(0.95); }
+  50% { opacity: 0.85; transform: translateX(-50%) scale(1.15); }
+}
+@keyframes lantern-breathe {
+  0%, 100% { transform: scale(0.985); }
+  50% { transform: scale(1.015); }
+}
+@keyframes lantern-flame {
+  0%, 100% { opacity: 0.75; transform: translateX(-50%) scale(0.92); }
+  50% { opacity: 1; transform: translateX(-50%) scale(1.12); }
+}
+/* Elliptical orbit = horizontal and vertical ease-in-out swings a quarter period apart. */
+@keyframes orbit-x {
+  from { transform: translateX(calc(var(--rx) * -1px)); }
+  to { transform: translateX(calc(var(--rx) * 1px)); }
+}
+@keyframes orbit-y {
+  from { transform: translateY(calc(var(--ry) * -1px)) scale(0.82); opacity: 0.72; }
+  to { transform: translateY(calc(var(--ry) * 1px)) scale(1.05); opacity: 1; }
+}
+.lantern-halo { animation: lantern-halo var(--dur) ease-in-out infinite; will-change: transform, opacity; }
+.lantern-glow { animation: lantern-glow 2.2s ease-in-out infinite; will-change: transform, opacity; }
+.lantern-breathe { animation: lantern-breathe var(--dur) ease-in-out infinite; will-change: transform; }
+.lantern-flame { animation: lantern-flame var(--dur) ease-in-out infinite; will-change: transform, opacity; }
+.orbit-x { animation: orbit-x calc(var(--period) / 2) ease-in-out var(--delay-x) infinite alternate; will-change: transform; }
+.orbit-y { animation: orbit-y calc(var(--period) / 2) ease-in-out var(--delay-y) infinite alternate; will-change: transform, opacity; }
+@media (prefers-reduced-motion: reduce) {
+  .lantern-halo, .lantern-glow, .lantern-breathe, .lantern-flame, .orbit-x, .orbit-y { animation: none; }
+}
+`;
+if (typeof document !== 'undefined' && !document.getElementById('lantern-css')) {
+  const style = document.createElement('style');
+  style.id = 'lantern-css';
+  style.textContent = LANTERN_CSS;
+  document.head.appendChild(style);
+}
+
 // Fallback presets per emotion from lantern-demo.html
 const FALLBACK_LANTERNS: Record<string, { palette: [string, string, string]; glow: number; flicker: number; shape: 'round' | 'tall' | 'paper' | 'star'; caption: string }> = {
   lonely: { palette: ['#9DB4FF', '#3B4A8C', '#1A2040'], glow: 0.35, flicker: 0.2, shape: 'tall', caption: 'one window lit at night' },
@@ -202,47 +249,27 @@ function OrbitingReplies({
   return (
     <div className="absolute inset-0 pointer-events-none z-30">
       {visibleReplies.map((reply, index) => {
-        const startPhase = (index / total) * (2 * Math.PI);
-        const orbitDuration = 18 + (index % 3) * 3; // 18s - 24s graceful serene orbit
-
-        // 8 keyframes for smooth circular/elliptical interpolation with low CPU overhead
-        const STEPS = 8;
-        const xKeyframes: number[] = [];
-        const yKeyframes: number[] = [];
-        const scaleKeyframes: number[] = [];
-        const opacityKeyframes: number[] = [];
-        const zIndexKeyframes: number[] = [];
-
-        for (let s = 0; s <= STEPS; s++) {
-          const angle = startPhase + (s / STEPS) * (2 * Math.PI);
-          const x = Math.round(Math.cos(angle) * rx);
-          const y = Math.round(Math.sin(angle) * ry);
-          const inFront = Math.sin(angle) >= 0;
-
-          xKeyframes.push(x);
-          yKeyframes.push(y);
-          scaleKeyframes.push(inFront ? (isHovered ? 1.2 : 1.05) : (isHovered ? 0.95 : 0.82));
-          opacityKeyframes.push(inFront ? 1.0 : 0.72);
-          zIndexKeyframes.push(inFront ? 35 : 5);
-        }
+        const period = 18 + (index % 3) * 3; // 18s - 24s graceful serene orbit
+        // Spread replies around the ellipse; y runs a quarter period behind x.
+        const phase = (index / total) * period;
 
         return (
-          <motion.div
+          <div
             key={reply.id}
-            className="absolute left-1/2 top-1/2 pointer-events-auto cursor-pointer"
-            style={{ x: '-50%', y: '-50%', willChange: 'transform' }}
-            animate={{
-              x: xKeyframes.map(x => `calc(-50% + ${x}px)`),
-              y: yKeyframes.map(y => `calc(-50% + ${y}px)`),
-              scale: scaleKeyframes,
-              opacity: opacityKeyframes,
-              zIndex: zIndexKeyframes,
-            }}
-            transition={{
-              duration: orbitDuration,
-              repeat: Infinity,
-              ease: 'linear',
-            }}
+            className="orbit-x absolute left-1/2 top-1/2"
+            style={{
+              '--rx': rx,
+              '--period': `${period}s`,
+              '--delay-x': `${-phase}s`,
+            } as React.CSSProperties}
+          >
+          <div
+            className="orbit-y pointer-events-auto cursor-pointer"
+            style={{
+              '--ry': ry,
+              '--period': `${period}s`,
+              '--delay-y': `${-phase - period / 4}s`,
+            } as React.CSSProperties}
             onPointerDown={(e) => {
               // Stop propagation so clicking a reply does not trigger lantern drag or canvas pan
               e.stopPropagation();
@@ -253,9 +280,8 @@ function OrbitingReplies({
             }}
             title={reply.type === 'note' ? reply.content : `${reply.type} reply`}
           >
-            <motion.div
-              className="relative flex items-center justify-center rounded-full bg-[rgba(15,10,18,0.92)] border border-[rgba(255,255,255,0.25)] backdrop-blur-md p-1.5 transition-all duration-200 shadow-lg"
-              whileHover={{ scale: 1.3 }}
+            <div
+              className="relative -translate-x-1/2 -translate-y-1/2 flex items-center justify-center rounded-full bg-[rgba(15,10,18,0.92)] border border-[rgba(255,255,255,0.25)] p-1.5 transition-transform duration-200 hover:scale-125 shadow-lg"
               style={{
                 boxShadow: isHovered
                   ? `0 0 16px ${glowColor}, inset 0 0 8px ${glowColor}`
@@ -285,8 +311,9 @@ function OrbitingReplies({
                   <Feather size={12} className="text-amber-200" />
                 )}
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
+          </div>
         );
       })}
     </div>
@@ -356,72 +383,45 @@ export function Lantern({
       className="relative flex flex-col items-center select-none group focus:outline-none pointer-events-none transition-all duration-500"
     >
       {/* Atmospheric Halo Glow behind the Lantern */}
-      <motion.div
-        className="absolute rounded-full pointer-events-none"
+      <div
+        className="lantern-halo absolute rounded-full pointer-events-none"
         style={{
           width: 190,
           height: 190,
           top: 5,
           left: '50%',
-          x: '-50%',
           background: `radial-gradient(circle, ${glowColor}c0 0%, ${glowColor}4d 38%, ${glowColor}00 70%)`,
-          willChange: 'transform, opacity',
-        }}
-        animate={{
-          opacity: [glow * 0.5, glow * 0.85, glow * 0.5],
-          scale: [0.95, 1.08, 0.95],
-        }}
-        transition={{
-          duration: flickerDuration,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
+          '--o1': glow * 0.5,
+          '--o2': glow * 0.85,
+          '--dur': `${flickerDuration}s`,
+        } as React.CSSProperties}
       />
 
       {/* Extra glow if AI is replying or highlighted */}
       {(isGlowing || isReplying) && (
-        <motion.div
-          className="absolute rounded-full pointer-events-none"
+        <div
+          className="lantern-glow absolute rounded-full pointer-events-none"
           style={{
             width: 240,
             height: 240,
             top: -20,
             left: '50%',
-            x: '-50%',
             background: `radial-gradient(circle, ${glowColor}d0 0%, ${glowColor}60 38%, ${glowColor}00 75%)`,
-            willChange: 'transform, opacity',
-          }}
-          animate={{
-            opacity: [0.4, 0.85, 0.4],
-            scale: [0.95, 1.15, 0.95],
-          }}
-          transition={{
-            duration: 2.2,
-            repeat: Infinity,
-            ease: 'easeInOut',
           }}
         />
       )}
 
       {/* Lantern Lamp Vessel & Surrounding Firefly Embers */}
       <div className="relative w-[110px] h-[165px] flex items-center justify-center">
-        {/* Lamp Silhouette Vessel */}
-        <motion.div
-          className="relative z-10 flex items-center justify-center w-full h-full pointer-events-auto"
+        {/* Lamp Silhouette Vessel: hover/press scale on the outer element, breathing on the inner
+            one (a CSS animation would otherwise override the hover transform). */}
+        <div className="relative z-10 w-full h-full pointer-events-auto transition-transform duration-300 hover:scale-105 active:scale-[0.96]">
+        <div
+          className="lantern-breathe relative flex items-center justify-center w-full h-full"
           style={{
             filter: `drop-shadow(0 6px 18px ${glowColor}70)`,
-            willChange: 'transform',
-          }}
-          animate={{
-            scale: [0.985, 1.015, 0.985],
-          }}
-          transition={{
-            duration: flickerDuration,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.96 }}
+            '--dur': `${flickerDuration}s`,
+          } as React.CSSProperties}
         >
           <LanternSvg
             shape={shape}
@@ -432,26 +432,17 @@ export function Lantern({
           />
 
           {/* Inner Flame Glow Core */}
-          <motion.div
-            className="absolute w-12 h-12 rounded-full pointer-events-none"
+          <div
+            className="lantern-flame absolute w-12 h-12 rounded-full pointer-events-none"
             style={{
               background: 'radial-gradient(circle, #ffffff 0%, #fff8ec 45%, rgba(255, 248, 236, 0) 75%)',
               top: 72,
               left: '50%',
-              x: '-50%',
-              willChange: 'transform, opacity',
-            }}
-            animate={{
-              opacity: [0.75, 1.0, 0.75],
-              scale: [0.92, 1.12, 0.92],
-            }}
-            transition={{
-              duration: flickerDuration * 0.7,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }}
+              '--dur': `${flickerDuration * 0.7}s`,
+            } as React.CSSProperties}
           />
-        </motion.div>
+        </div>
+        </div>
 
         {/* Orbiting Replies floating around the lamp */}
         {responses.length > 0 && (
@@ -469,7 +460,7 @@ export function Lantern({
         <div className="flex items-center gap-1.5 mb-1">
           {isNew && (
             <span
-              className="px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-bold bg-[rgba(214,106,62,0.35)] text-[#ffd9c2] border border-[rgba(214,106,62,0.5)] backdrop-blur-md animate-pulse shadow-[0_0_8px_rgba(214,106,62,0.4)]"
+              className="px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-bold bg-[rgba(214,106,62,0.45)] text-[#ffd9c2] border border-[rgba(214,106,62,0.5)] animate-pulse shadow-[0_0_8px_rgba(214,106,62,0.4)]"
               style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
             >
               your lantern
@@ -477,7 +468,7 @@ export function Lantern({
           )}
           {isExample && (
             <span
-              className="px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-semibold bg-white/10 text-[#d8cfc7] border border-white/15 backdrop-blur-md"
+              className="px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-semibold bg-[rgba(40,32,36,0.85)] text-[#d8cfc7] border border-white/15"
               style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
             >
               example
@@ -485,7 +476,7 @@ export function Lantern({
           )}
           {EmotionIcon && (
             <span
-              className="text-[#f9f3eb]/70 p-1 rounded-full bg-white/5 backdrop-blur-sm"
+              className="text-[#f9f3eb]/70 p-1 rounded-full bg-[rgba(30,24,28,0.6)]"
               title={emotion}
             >
               <EmotionIcon size={12} />
@@ -495,7 +486,7 @@ export function Lantern({
 
         {/* Thought text excerpt */}
         <p
-          className="text-[#f9f3eb] text-[15px] leading-[1.5] font-normal select-none line-clamp-3 px-2 py-1 rounded-lg backdrop-blur-sm bg-[rgba(10,7,12,0.4)] border border-[rgba(255,255,255,0.06)]"
+          className="text-[#f9f3eb] text-[15px] leading-[1.5] font-normal select-none line-clamp-3 px-2 py-1 rounded-lg bg-[rgba(10,7,12,0.6)] border border-[rgba(255,255,255,0.06)]"
           style={{
             fontFamily: "'Alegreya', serif",
             textShadow: '0 2px 8px rgba(0,0,0,0.85)',
