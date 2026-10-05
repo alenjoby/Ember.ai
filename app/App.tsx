@@ -169,9 +169,28 @@ export default function App() {
       fetchThoughts();
     }, 10000);
 
-    // Subscribe to key-value store changes in Supabase
+    // Debounce timer for realtime refetches
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const triggerDebouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchThoughts();
+      }, 300);
+    };
+
+    // Subscribe to thoughts and replies table changes (F1 spec), fallback to kv_store
     const channel = supabase
-      .channel('realtime-kv')
+      .channel('realtime-thoughts')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'thoughts' },
+        () => triggerDebouncedFetch()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'replies' },
+        () => triggerDebouncedFetch()
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'kv_store_9b55d09a' },

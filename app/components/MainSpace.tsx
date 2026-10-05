@@ -445,6 +445,17 @@ const ThoughtCard = React.memo(function ThoughtCard({
                 </svg>
               </div>
               
+              {thought.isExample && (
+                <div className="mb-1.5 flex justify-center">
+                  <span
+                    className="px-2 py-0.5 rounded-full text-[10px] tracking-wide uppercase bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] text-[#a89e96]"
+                    style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 600 }}
+                  >
+                    example
+                  </span>
+                </div>
+              )}
+
               {thought.emotion && EMOTION_ICONS[thought.emotion] && (() => {
                 const Icon = EMOTION_ICONS[thought.emotion];
                 return (

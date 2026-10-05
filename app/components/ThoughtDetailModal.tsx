@@ -242,40 +242,13 @@ function VoiceTab({ onSend }: { onSend: (text: string, url: string) => void }) {
     
     setLoading(true);
     try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/server/moderate-audio`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': publicAnonKey,
-          'Authorization': `Bearer ${publicAnonKey}`
-        },
-        body: JSON.stringify({ audioData: recordedAudioUrl })
-      });
-      
-      if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-      const data = await response.json();
-      
-      if (data && data.allowed === false) {
-        setGuardMessage(data.reason || "This voice message cannot be sent because it violates our safety guidelines.");
-        setGuardSeverity(data.isCrisis ? 'mild' : 'severe');
-        setShowGuard(true);
-        setLoading(false);
-        return;
-      }
-      
-      const finalTranscript = data?.transcript || `Voice message (${formatTime(duration)})`;
-      
+      const finalTranscript = `Voice message (${formatTime(duration)})`;
       onSend(finalTranscript, recordedAudioUrl);
       setRecordState('idle');
       setDuration(0);
       setRecordedAudioUrl('');
     } catch (err) {
-      console.error('Audio moderation error:', err);
-      // Fallback: send anyway
-      onSend(`Voice message (${formatTime(duration)})`, recordedAudioUrl);
-      setRecordState('idle');
-      setDuration(0);
-      setRecordedAudioUrl('');
+      console.error('Audio send error:', err);
     } finally {
       setLoading(false);
     }
