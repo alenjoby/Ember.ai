@@ -205,10 +205,10 @@ function OrbitingReplies({
         const startPhase = (index / total) * (2 * Math.PI);
         const orbitDuration = 18 + (index % 3) * 3; // 18s - 24s graceful serene orbit
 
-        // 16 keyframes for smooth circular/elliptical interpolation
-        const STEPS = 16;
-        const xKeyframes: string[] = [];
-        const yKeyframes: string[] = [];
+        // 8 keyframes for smooth circular/elliptical interpolation with low CPU overhead
+        const STEPS = 8;
+        const xKeyframes: number[] = [];
+        const yKeyframes: number[] = [];
         const scaleKeyframes: number[] = [];
         const opacityKeyframes: number[] = [];
         const zIndexKeyframes: number[] = [];
@@ -219,8 +219,8 @@ function OrbitingReplies({
           const y = Math.round(Math.sin(angle) * ry);
           const inFront = Math.sin(angle) >= 0;
 
-          xKeyframes.push(`calc(-50% + ${x}px)`);
-          yKeyframes.push(`calc(-50% + ${y}px)`);
+          xKeyframes.push(x);
+          yKeyframes.push(y);
           scaleKeyframes.push(inFront ? (isHovered ? 1.2 : 1.05) : (isHovered ? 0.95 : 0.82));
           opacityKeyframes.push(inFront ? 1.0 : 0.72);
           zIndexKeyframes.push(inFront ? 35 : 5);
@@ -230,10 +230,10 @@ function OrbitingReplies({
           <motion.div
             key={reply.id}
             className="absolute left-1/2 top-1/2 pointer-events-auto cursor-pointer"
-            style={{ x: '-50%', y: '-50%' }}
+            style={{ x: '-50%', y: '-50%', willChange: 'transform' }}
             animate={{
-              x: xKeyframes,
-              y: yKeyframes,
+              x: xKeyframes.map(x => `calc(-50% + ${x}px)`),
+              y: yKeyframes.map(y => `calc(-50% + ${y}px)`),
               scale: scaleKeyframes,
               opacity: opacityKeyframes,
               zIndex: zIndexKeyframes,
@@ -242,6 +242,10 @@ function OrbitingReplies({
               duration: orbitDuration,
               repeat: Infinity,
               ease: 'linear',
+            }}
+            onPointerDown={(e) => {
+              // Stop propagation so clicking a reply does not trigger lantern drag or canvas pan
+              e.stopPropagation();
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -260,8 +264,10 @@ function OrbitingReplies({
             >
               {/* Mini ember core */}
               <div
-                className="absolute inset-0 rounded-full blur-[3px] pointer-events-none opacity-60"
-                style={{ backgroundColor: glowColor }}
+                className="absolute inset-0 rounded-full pointer-events-none opacity-70"
+                style={{
+                  background: `radial-gradient(circle, ${glowColor}ee 0%, ${glowColor}66 50%, transparent 80%)`,
+                }}
               />
 
               <div className="relative z-10 flex items-center justify-center text-[#f9f3eb]">
@@ -353,16 +359,16 @@ export function Lantern({
       <motion.div
         className="absolute rounded-full pointer-events-none"
         style={{
-          width: 170,
-          height: 170,
-          top: 15,
+          width: 190,
+          height: 190,
+          top: 5,
           left: '50%',
           x: '-50%',
-          backgroundColor: glowColor,
-          filter: `blur(${Math.max(22, glow * 40)}px)`,
+          background: `radial-gradient(circle, ${glowColor}c0 0%, ${glowColor}4d 38%, ${glowColor}00 70%)`,
+          willChange: 'transform, opacity',
         }}
         animate={{
-          opacity: [glow * 0.45, glow * 0.75, glow * 0.45],
+          opacity: [glow * 0.5, glow * 0.85, glow * 0.5],
           scale: [0.95, 1.08, 0.95],
         }}
         transition={{
@@ -377,16 +383,16 @@ export function Lantern({
         <motion.div
           className="absolute rounded-full pointer-events-none"
           style={{
-            width: 220,
-            height: 220,
-            top: -10,
+            width: 240,
+            height: 240,
+            top: -20,
             left: '50%',
             x: '-50%',
-            backgroundColor: glowColor,
-            filter: 'blur(45px)',
+            background: `radial-gradient(circle, ${glowColor}d0 0%, ${glowColor}60 38%, ${glowColor}00 75%)`,
+            willChange: 'transform, opacity',
           }}
           animate={{
-            opacity: [0.35, 0.75, 0.35],
+            opacity: [0.4, 0.85, 0.4],
             scale: [0.95, 1.15, 0.95],
           }}
           transition={{
@@ -402,13 +408,12 @@ export function Lantern({
         {/* Lamp Silhouette Vessel */}
         <motion.div
           className="relative z-10 flex items-center justify-center w-full h-full pointer-events-auto"
+          style={{
+            filter: `drop-shadow(0 6px 18px ${glowColor}70)`,
+            willChange: 'transform',
+          }}
           animate={{
             scale: [0.985, 1.015, 0.985],
-            filter: [
-              `drop-shadow(0 4px 14px ${glowColor}66)`,
-              `drop-shadow(0 6px 24px ${glowColor}aa)`,
-              `drop-shadow(0 4px 14px ${glowColor}66)`,
-            ],
           }}
           transition={{
             duration: flickerDuration,
@@ -428,11 +433,17 @@ export function Lantern({
 
           {/* Inner Flame Glow Core */}
           <motion.div
-            className="absolute w-10 h-10 rounded-full pointer-events-none blur-md"
-            style={{ backgroundColor: '#fff8ec', top: 75, left: '50%', x: '-50%' }}
+            className="absolute w-12 h-12 rounded-full pointer-events-none"
+            style={{
+              background: 'radial-gradient(circle, #ffffff 0%, #fff8ec 45%, rgba(255, 248, 236, 0) 75%)',
+              top: 72,
+              left: '50%',
+              x: '-50%',
+              willChange: 'transform, opacity',
+            }}
             animate={{
-              opacity: [0.7, 1.0, 0.7],
-              scale: [0.9, 1.15, 0.9],
+              opacity: [0.75, 1.0, 0.75],
+              scale: [0.92, 1.12, 0.92],
             }}
             transition={{
               duration: flickerDuration * 0.7,
