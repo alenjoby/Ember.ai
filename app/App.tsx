@@ -45,6 +45,10 @@ export interface Thought {
   rotation: number;
   x: number;
   y: number;
+  /** Server-placed position (before any local drag). Connection threads pair lanterns by this,
+   *  so dragging one far away stretches its threads instead of re-pairing it. */
+  homeX?: number;
+  homeY?: number;
   variant: 'warm' | 'light' | 'teal' | 'rose';
   responses: ThoughtResponse[];
   aiResponded?: boolean;
@@ -140,6 +144,8 @@ export default function App() {
           ...t,
           x: saved ? saved.x : t.x,
           y: saved ? saved.y : t.y,
+          homeX: t.x,
+          homeY: t.y,
           timestamp: new Date(t.timestamp),
           responses: (t.responses || []).map((r: any) => ({
             ...r,
