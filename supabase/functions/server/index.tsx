@@ -17,7 +17,7 @@ import {
   VARIANTS,
 } from "./db.ts";
 import { helplineFor } from "./helplines.ts";
-import { AiUnavailableError, aiConfigured } from "./llm.ts";
+import { AiUnavailableError, aiConfigured, gemini } from "./llm.ts";
 import { moderateImage, moderateText, moderateVoice, VoiceUnclearError } from "./moderation.ts";
 import { isRateLimited } from "./rateLimit.ts";
 import {
@@ -28,7 +28,7 @@ import {
   verifyAdminPasscode,
   verifyAdminToken,
 } from "./security.ts";
-import { generateLantern } from "./lantern.ts";
+import { generateLantern, guessEmotion } from "./lantern.ts";
 import { scheduleAiReply } from "./aiReply.ts";
 import { demoAutopilotTick, demoEnabled, demoOnline, scheduleDemoReplies } from "./demo.ts";
 
@@ -153,19 +153,36 @@ app.onError((err, c) => {
 app.notFound((c) => fail(c, 404, "not_found", "Nothing here."));
 
 // Health
-app.get("/health", (c) => c.json({ ok: true, ai: aiConfigured() ? "up" : "down" }));
+// ?deep=1 makes one small real LLM call and reports timing or a short error (never the key)
+app.get("/health", async (c) => {
+  if (!aiConfigured()) return c.json({ ok: true, ai: "down" });
+  if (c.req.query("deep") !== "1") return c.json({ ok: true, ai: "up" });
+  const t0 = Date.now();
+  try {
+    await gemini([{ text: 'Return JSON only: {"ok": true}' }], { json: true, timeoutMs: 15000 });
+    return c.json({ ok: true, ai: "up", llmMs: Date.now() - t0 });
+  } catch (err) {
+    return c.json({ ok: true, ai: "error", llm: (err as Error).message.slice(0, 300) });
+  }
+});
 
 // List thoughts (newest 200 visible, replies oldest first)
+// With DEMO_MODE off, simulated thoughts and replies (authorId demo_*) are hidden, not deleted.
 app.get("/thoughts", async (c) => {
-  if (demoEnabled()) background("demoAutopilot", demoAutopilotTick());
-  const { data, error } = await supabase
+  const demo = demoEnabled();
+  if (demo) background("demoAutopilot", demoAutopilotTick());
+  let query = supabase
     .from("thoughts")
     .select("*, replies(*)")
-    .eq("hidden", false)
-    .order("created_at", { ascending: false })
-    .limit(200);
+    .eq("hidden", false);
+  if (!demo) query = query.or("author_id.is.null,author_id.not.like.demo_*");
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(200);
   if (error) throw new Error(error.message);
-  return c.json((data as ThoughtRow[]).map(toThought));
+  let rows = data as ThoughtRow[];
+  if (!demo) {
+    rows = rows.map((t) => ({ ...t, replies: (t.replies ?? []).filter((r) => !r.author_id?.startsWith("demo_")) }));
+  }
+  return c.json(rows.map(toThought));
 });
 
 // Create a thought
@@ -186,7 +203,7 @@ app.post("/thoughts", async (c) => {
   const verdict = await moderateText(text);
   if (!verdict.allowed) return blocked(c, verdict.reason, verdict.severity as "mild");
 
-  const pos = await pickPosition();
+  const pos = await pickPosition((emotion as string | null) ?? (verdict.isCrisis ? null : guessEmotion(text)));
   const { data: row, error } = await supabase
     .from("thoughts")
     .insert({
@@ -212,7 +229,7 @@ app.post("/thoughts", async (c) => {
     throw err;
   }
 
-  background("lantern", generateLantern(row.id, text, emotion as string | null));
+  background("lantern", generateLantern(row.id, text, emotion as string | null, verdict.isCrisis));
   background("aiReply", scheduleAiReply(row.id));
   // Demo video only: simulated peers. Never on crisis thoughts.
   if (demoEnabled() && !verdict.isCrisis) background("demo", scheduleDemoReplies(row.id, emotion as string | null));
