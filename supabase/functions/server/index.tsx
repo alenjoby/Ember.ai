@@ -167,16 +167,22 @@ app.get("/health", async (c) => {
 });
 
 // List thoughts (newest 200 visible, replies oldest first)
+// With DEMO_MODE off, simulated thoughts and replies (authorId demo_*) are hidden, not deleted.
 app.get("/thoughts", async (c) => {
-  if (demoEnabled()) background("demoAutopilot", demoAutopilotTick());
-  const { data, error } = await supabase
+  const demo = demoEnabled();
+  if (demo) background("demoAutopilot", demoAutopilotTick());
+  let query = supabase
     .from("thoughts")
     .select("*, replies(*)")
-    .eq("hidden", false)
-    .order("created_at", { ascending: false })
-    .limit(200);
+    .eq("hidden", false);
+  if (!demo) query = query.or("author_id.is.null,author_id.not.like.demo_*");
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(200);
   if (error) throw new Error(error.message);
-  return c.json((data as ThoughtRow[]).map(toThought));
+  let rows = data as ThoughtRow[];
+  if (!demo) {
+    rows = rows.map((t) => ({ ...t, replies: (t.replies ?? []).filter((r) => !r.author_id?.startsWith("demo_")) }));
+  }
+  return c.json(rows.map(toThought));
 });
 
 // Create a thought
