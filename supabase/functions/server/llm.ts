@@ -1,4 +1,5 @@
-// LLM access (Gemini). All model calls go through these helpers.
+// LLM access. Text tasks use generate(): Featherless first (when FEATHERLESS_API_KEY is set),
+// Gemini as backup. Audio/image tasks call gemini() directly (Featherless has no audio input).
 
 export class AiUnavailableError extends Error {
   constructor(message = "AI key not configured") {
@@ -19,7 +20,7 @@ export interface GenerateOptions {
 }
 
 export function aiConfigured(): boolean {
-  return !!Deno.env.get("GEMINI_API_KEY");
+  return !!Deno.env.get("GEMINI_API_KEY") || !!Deno.env.get("FEATHERLESS_API_KEY");
 }
 
 // Tried in order: on overload (503), rate limit (429), retired model (404), 5xx or timeout,
@@ -71,7 +72,13 @@ async function callModel(model: string, apiKey: string, parts: Part[], opts: Gen
     if (res.status >= 500) throw new RetryableError(msg, 15_000);
     throw new Error(msg);
   }
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    // The timeout can fire while the body is still streaming in.
+    throw new RetryableError(`${model}: ${(err as Error).name} reading response`, 30_000);
+  }
   const text = (data.candidates?.[0]?.content?.parts ?? [])
     .map((p: { text?: string }) => p.text ?? "")
     .join("")
@@ -103,9 +110,93 @@ export async function gemini(parts: Part[], opts: GenerateOptions): Promise<stri
   throw new Error(`Gemini failed: ${errors.join(" | ").slice(0, 400)}`);
 }
 
+// ─── Featherless (OpenAI-compatible) ────────────────────────────────
+
+async function featherless(prompt: string, opts: GenerateOptions, timeoutMs: number): Promise<string> {
+  const apiKey = Deno.env.get("FEATHERLESS_API_KEY")!;
+  const model = Deno.env.get("FEATHERLESS_MODEL") ?? "Qwen/Qwen2.5-32B-Instruct";
+  let res: Response;
+  try {
+    res = await fetch("https://api.featherless.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(timeoutMs),
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: opts.json ? `${prompt}\n\nRespond with the JSON object only, no other text.` : prompt }],
+        temperature: opts.temperature ?? 0.2,
+        max_tokens: opts.maxOutputTokens ?? 512,
+      }),
+    });
+  } catch (err) {
+    throw new RetryableError(`featherless: ${(err as Error).name}`, 30_000);
+  }
+  if (!res.ok) {
+    const msg = `featherless ${res.status}: ${(await res.text()).slice(0, 200)}`;
+    // 429 here is usually the plan's concurrency limit: short rest. 401/402 (key/credits): long rest.
+    throw new RetryableError(msg, res.status === 429 ? 5_000 : res.status >= 500 ? 15_000 : 300_000);
+  }
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    // The timeout can fire while the body is still streaming in.
+    throw new RetryableError(`${model}: ${(err as Error).name} reading response`, 30_000);
+  }
+  const text = (data.choices?.[0]?.message?.content ?? "").trim();
+  if (!text) throw new RetryableError("featherless returned no text");
+  return text;
+}
+
+/** Health probe: one direct Featherless call, returns latency or a short error. */
+export async function probeFeatherless(): Promise<{ ms?: number; error?: string }> {
+  if (!Deno.env.get("FEATHERLESS_API_KEY")) return { error: "FEATHERLESS_API_KEY not set" };
+  const t0 = Date.now();
+  try {
+    await featherless('Return JSON only: {"ok": true}', { json: true, maxOutputTokens: 20, timeoutMs: 30000 }, 30000);
+    return { ms: Date.now() - t0 };
+  } catch (err) {
+    return { error: (err as Error).message.slice(0, 300) };
+  }
+}
+
+/** Text-only generation: Featherless first, Gemini as backup, within one time budget. */
+export async function generate(prompt: string, opts: GenerateOptions): Promise<string> {
+  const hasFeatherless = !!Deno.env.get("FEATHERLESS_API_KEY");
+  // Gemini only counts as a backup if one of its models isn't resting (e.g. after a quota 429).
+  const hasGemini = !!Deno.env.get("GEMINI_API_KEY") &&
+    models().some((m) => (restingUntil.get(m) ?? 0) <= Date.now());
+  if (!hasFeatherless && !hasGemini) throw new AiUnavailableError();
+
+  const deadline = Date.now() + opts.timeoutMs;
+  let featherlessError = "";
+  if (hasFeatherless && (restingUntil.get("featherless") ?? 0) <= Date.now()) {
+    try {
+      // Leave time for Gemini if it is configured.
+      return await featherless(prompt, opts, hasGemini ? Math.max(1500, opts.timeoutMs * 0.7) : opts.timeoutMs);
+    } catch (err) {
+      if (!(err instanceof RetryableError)) throw err;
+      if (err.restMs) restingUntil.set("featherless", Date.now() + err.restMs);
+      featherlessError = err.message;
+    }
+  }
+  if (!hasGemini) throw new Error(`LLM failed: ${featherlessError || "featherless resting"}`);
+  const remaining = deadline - Date.now();
+  if (remaining < 800) throw new Error(`LLM failed: ${featherlessError} | no time left for Gemini`);
+  return await gemini([{ text: prompt }], { ...opts, timeoutMs: remaining });
+}
+
 export function parseJsonLoose(text: string): unknown {
   const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-  return JSON.parse(cleaned);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // Open models sometimes add a sentence around the JSON: take the outermost {...}.
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start >= 0 && end > start) return JSON.parse(cleaned.slice(start, end + 1));
+    throw new Error("no JSON in model output");
+  }
 }
 
 /** Wrap untrusted user text so the model treats it as data, not instructions. */

@@ -1,6 +1,6 @@
 // Ember's background AI reply (spec Step 4). Honest: Ember is an AI and says so.
 import { supabase, uploadMedia } from "./db.ts";
-import { fenced, gemini } from "./llm.ts";
+import { fenced, generate } from "./llm.ts";
 import { takeTtsBudget } from "./rateLimit.ts";
 
 const REPLY_RULES = `Follow these rules strictly:
@@ -125,7 +125,7 @@ export async function scheduleAiReply(id: string, useLlm = true): Promise<void> 
   try {
     if (!useLlm) throw new Error("LLM skipped (demo thought)");
     const prompt = claimed.show_help ? crisisPrompt(claimed.text) : supportPrompt(claimed.text, claimed.emotion);
-    content = cleanReply(await gemini([{ text: prompt }], { temperature: 0.9, maxOutputTokens: 300, timeoutMs: 20000 }));
+    content = cleanReply(await generate(prompt, { temperature: 0.9, maxOutputTokens: 300, timeoutMs: 20000 }));
     if (!content) throw new Error("empty reply");
   } catch (err) {
     console.warn("[aiReply] generation failed, using fallback:", (err as Error).message);
