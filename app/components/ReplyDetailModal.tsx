@@ -144,7 +144,7 @@ export function ReplyDetailModal({ reply, parentThought, onClose }: ReplyDetailM
 
           {reply.type === 'drawing' && reply.drawingData && (
             <div className="w-full bg-[rgba(255,255,255,0.02)] rounded-xl overflow-hidden border border-[rgba(255,255,255,0.05)]">
-              <img src={reply.drawingData} alt="Drawing response" className="w-full h-auto object-contain" />
+              <img src={reply.drawingData} alt="A drawing reply" className="w-full h-auto object-contain" />
             </div>
           )}
 

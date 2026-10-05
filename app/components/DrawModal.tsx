@@ -294,7 +294,7 @@ export function DrawModal({ onClose, onSend }: DrawModalProps) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-10"
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 lg:p-10"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -303,7 +303,7 @@ export function DrawModal({ onClose, onSend }: DrawModalProps) {
       <div className="absolute inset-0 bg-[rgba(5,3,8,0.85)] backdrop-blur-md" onClick={onClose} />
 
       <motion.div
-        className="relative w-full max-w-5xl h-[80vh] bg-[rgba(255,255,255,0.03)] backdrop-blur-3xl border border-[rgba(255,255,255,0.15)] rounded-[32px] shadow-[0px_32px_64px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.1)] overflow-hidden flex flex-col"
+        className="relative w-full h-[100dvh] sm:h-[80vh] max-w-5xl bg-[rgba(255,255,255,0.03)] backdrop-blur-3xl border-0 sm:border border-[rgba(255,255,255,0.15)] rounded-none sm:rounded-[32px] shadow-[0px_32px_64px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.1)] overflow-hidden flex flex-col"
         initial={{ y: 30, scale: 0.98 }}
         animate={{ y: 0, scale: 1 }}
         exit={{ y: 20, scale: 0.98 }}

@@ -29,3 +29,6 @@ dist-ssr
 !.env.example
 supabase/.env
 supabase/functions/.env
+
+# Local private docs
+DONT PUSH ONLY LOCAL/
