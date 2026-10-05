@@ -1,0 +1,20 @@
+{
+  "thought": {
+    "id": "6f1c2a9e-4b7d-4e2a-9c1f-2d3b4a5c6d7e",
+    "text": "first night in a new city and the quiet is louder than I expected",
+    "timestamp": "2026-10-05T21:14:03.512Z",
+    "rotation": -2.4,
+    "x": 412,
+    "y": -638,
+    "width": 312,
+    "variant": "teal",
+    "responses": [],
+    "aiStatus": "waiting",
+    "lantern": null,
+    "showHelp": false,
+    "isExample": false,
+    "emotion": "lonely",
+    "authorId": "user_k3j9x2"
+  },
+  "ownerToken": "q9Vb1nZ3x7Lr0aT5cW2eYh8uJ4mK6pD1sF0gH3jQ8vE"
+}
