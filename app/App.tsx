@@ -107,11 +107,12 @@ export default function App() {
 
   // Demo mode: server says how many simulated people to add to the live count (0 when off)
   const [demoOnline, setDemoOnline] = useState(0);
+  const [demoEnabled, setDemoEnabled] = useState<boolean | null>(null);
   useEffect(() => {
     const loadDemo = () =>
       fetch(`${SERVER_URL}/demo`, { headers: { apikey: publicAnonKey, Authorization: `Bearer ${publicAnonKey}` } })
         .then(r => r.json())
-        .then(d => setDemoOnline(d.online ?? 0))
+        .then(d => { setDemoOnline(d.online ?? 0); setDemoEnabled(!!d.enabled); })
         .catch(() => {});
     loadDemo();
     const id = setInterval(loadDemo, 5 * 60 * 1000);
@@ -154,6 +155,36 @@ export default function App() {
       }
     }
   }, [anonUserId]);
+
+  // Dev-only demo toggle: admin passcode once per session -> admin token -> POST /demo
+  const toggleDemo = useCallback(async () => {
+    const headers = { apikey: publicAnonKey, Authorization: `Bearer ${publicAnonKey}`, 'Content-Type': 'application/json' };
+    let adminToken = sessionStorage.getItem('ember_demo_admin_token');
+    if (!adminToken) {
+      const passcode = prompt('Admin passcode to switch demo mode:');
+      if (!passcode) return;
+      const res = await fetch(`${SERVER_URL}/verify-admin`, { method: 'POST', headers, body: JSON.stringify({ passcode }) });
+      const data = await res.json().catch(() => ({}));
+      if (!data.adminToken) { alert('Incorrect passcode.'); return; }
+      adminToken = data.adminToken as string;
+      sessionStorage.setItem('ember_demo_admin_token', adminToken);
+    }
+    const res = await fetch(`${SERVER_URL}/demo`, {
+      method: 'POST',
+      headers: { ...headers, 'X-Admin-Token': adminToken },
+      body: JSON.stringify({ enabled: !demoEnabled }),
+    });
+    if (res.status === 403) {
+      sessionStorage.removeItem('ember_demo_admin_token'); // expired token: ask again next click
+      alert('Admin session expired, click again.');
+      return;
+    }
+    const data = await res.json().catch(() => null);
+    if (!data) return;
+    setDemoEnabled(!!data.enabled);
+    setDemoOnline(data.online ?? 0);
+    fetchThoughts();
+  }, [demoEnabled, fetchThoughts]);
 
   useEffect(() => {
     fetchThoughts();
@@ -552,6 +583,20 @@ export default function App() {
 
   return (
     <div className="w-full h-[100dvh] relative overflow-hidden bg-[#f9f3eb]">
+      {import.meta.env.DEV && demoEnabled !== null && (
+        <button
+          onClick={toggleDemo}
+          className="fixed bottom-4 left-4 z-[100] rounded-full px-3 py-1.5 text-xs font-medium shadow-md border transition-colors"
+          style={{
+            background: demoEnabled ? '#d66a3e' : 'rgba(255,255,255,0.85)',
+            color: demoEnabled ? '#fff' : '#5a4c44',
+            borderColor: demoEnabled ? '#d66a3e' : 'rgba(90,76,68,0.25)',
+          }}
+          title="Dev only: show or hide simulated people"
+        >
+          Demo {demoEnabled ? 'on' : 'off'}
+        </button>
+      )}
       <MainSpace
         thoughts={activeThoughts}
         selectedThoughtId={activeView === 'thoughtDetail' && selectedThought ? selectedThought.id : null}
