@@ -63,13 +63,21 @@ export const ConnectionThreads = React.memo(React.forwardRef<ConnectionThreadsHa
       const a = thoughts[i];
       if (!a.emotion) continue;
 
-      // Find peers with the same emotion (scale down peer count when density is high)
+      // Find peers with the same emotion (scale down peer count when density is high).
+      // Pair by the server-placed "home" position, not the dragged one: dragging a lantern far
+      // away then stretches its threads instead of cutting it off from its group.
       const maxPeers = thoughts.length > 20 ? 1 : 2;
+      const home = (t: Thought) => ({
+        x: (t as Thought & { homeX?: number }).homeX ?? t.x ?? 0,
+        y: (t as Thought & { homeY?: number }).homeY ?? t.y ?? 0,
+      });
+      const ah = home(a);
       const sameEmotionPeers = thoughts
         .filter(b => b.id !== a.id && b.emotion === a.emotion)
         .map(b => {
-          const dx = (a.x || 0) - (b.x || 0);
-          const dy = (a.y || 0) - (b.y || 0);
+          const bh = home(b);
+          const dx = ah.x - bh.x;
+          const dy = ah.y - bh.y;
           return { peer: b, distSq: dx * dx + dy * dy };
         })
         .sort((p1, p2) => p1.distSq - p2.distSq)
