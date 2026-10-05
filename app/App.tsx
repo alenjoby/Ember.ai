@@ -105,6 +105,19 @@ export default function App() {
     voiceCountRef.current = voiceCount;
   }, [voiceCount]);
 
+  // Demo mode: server says how many simulated people to add to the live count (0 when off)
+  const [demoOnline, setDemoOnline] = useState(0);
+  useEffect(() => {
+    const loadDemo = () =>
+      fetch(`${SERVER_URL}/demo`, { headers: { apikey: publicAnonKey, Authorization: `Bearer ${publicAnonKey}` } })
+        .then(r => r.json())
+        .then(d => setDemoOnline(d.online ?? 0))
+        .catch(() => {});
+    loadDemo();
+    const id = setInterval(loadDemo, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
 
   // Fetch thoughts — reads directly from the KV table to avoid edge function cold-start/EPIPE issues
   const fetchThoughts = useCallback(async () => {
@@ -548,7 +561,7 @@ export default function App() {
         onHistoryClick={() => setActiveView('history')}
         onThoughtMove={handleThoughtMove}
         aiGlowThoughtId={aiGlowThoughtId}
-        voiceCount={voiceCount}
+        voiceCount={voiceCount + demoOnline}
         panToTarget={panToTarget}
         onPanComplete={() => setPanToTarget(null)}
         tutorialStep={tutorialStep}
