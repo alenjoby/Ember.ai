@@ -419,3 +419,4 @@ enabled = true
 # Every write is still protected by the function itself (validation, moderation, rate limits,
 # owner/admin tokens) and by RLS.
 verify_jwt = false
+entrypoint = "./functions/server/index.tsx"
