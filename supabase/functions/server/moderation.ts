@@ -65,12 +65,20 @@ Return JSON only: {"allowed": boolean, "isCrisis": boolean, "severity": "clean"|
 
 ${fenced(text)}`,
     }],
-    { json: true, timeoutMs: 8000 },
+    { json: true, timeoutMs: 5000 },
   );
   return parseVerdict(parseJsonLoose(out));
 }
 
+// The app pre-checks with /moderate, then POST /thoughts checks the same text again.
+// Reuse AI-backed verdicts for 2 min so the second check is instant. Per instance.
+const CACHE_TTL_MS = 120_000;
+const verdictCache = new Map<string, { result: ModerationResult; at: number }>();
+
 export async function moderateText(text: string): Promise<ModerationResult> {
+  const hit = verdictCache.get(text);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.result;
+
   const rules = detectNegativity(text);
   let ai: AiVerdict | null = null;
   try {
@@ -78,7 +86,12 @@ export async function moderateText(text: string): Promise<ModerationResult> {
   } catch (err) {
     console.warn("[moderate] AI check failed, using rules only:", (err as Error).message);
   }
-  return combine(rules, ai);
+  const result = combine(rules, ai);
+  if (ai) {
+    if (verdictCache.size > 500) verdictCache.clear();
+    verdictCache.set(text, { result, at: Date.now() });
+  }
+  return result;
 }
 
 export class VoiceUnclearError extends Error {}

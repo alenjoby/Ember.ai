@@ -19,6 +19,7 @@ import {
 import { helplineFor } from "./helplines.ts";
 import { AiUnavailableError, aiConfigured, gemini } from "./llm.ts";
 import { moderateImage, moderateText, moderateVoice, VoiceUnclearError } from "./moderation.ts";
+import { detectNegativity } from "./safeSpace.ts";
 import { isRateLimited } from "./rateLimit.ts";
 import {
   issueAdminToken,
@@ -200,10 +201,11 @@ app.post("/thoughts", async (c) => {
     return fail(c, 400, "invalid_emotion", "That feeling tag isn't one we know.");
   }
 
-  const verdict = await moderateText(text);
+  // Find a spot on the canvas while moderation runs (placement uses the instant rules check only).
+  const placeAs = (emotion as string | null) ?? (detectNegativity(text).isCrisis ? null : guessEmotion(text));
+  const [verdict, pos] = await Promise.all([moderateText(text), pickPosition(placeAs)]);
   if (!verdict.allowed) return blocked(c, verdict.reason, verdict.severity as "mild");
 
-  const pos = await pickPosition((emotion as string | null) ?? (verdict.isCrisis ? null : guessEmotion(text)));
   const { data: row, error } = await supabase
     .from("thoughts")
     .insert({

@@ -32,7 +32,15 @@ function models(): string[] {
   return list.length ? list : DEFAULT_MODELS;
 }
 
-class RetryableError extends Error {}
+class RetryableError extends Error {
+  constructor(message: string, readonly restMs = 0) {
+    super(message);
+  }
+}
+
+// Models that just failed (quota, overload, timeout) rest for a while, so callers fall back
+// to rules/presets instantly instead of waiting on a model that will fail again. Per instance.
+const restingUntil = new Map<string, number>();
 
 async function callModel(model: string, apiKey: string, parts: Part[], opts: GenerateOptions, timeoutMs: number) {
   const generationConfig: Record<string, unknown> = {
@@ -55,11 +63,12 @@ async function callModel(model: string, apiKey: string, parts: Part[], opts: Gen
       },
     );
   } catch (err) {
-    throw new RetryableError(`${model}: ${(err as Error).name}`);
+    throw new RetryableError(`${model}: ${(err as Error).name}`, 30_000);
   }
   if (!res.ok) {
     const msg = `${model} ${res.status}: ${(await res.text()).slice(0, 200)}`;
-    if ([404, 429].includes(res.status) || res.status >= 500) throw new RetryableError(msg);
+    if (res.status === 429 || res.status === 404) throw new RetryableError(msg, 60_000);
+    if (res.status >= 500) throw new RetryableError(msg, 15_000);
     throw new Error(msg);
   }
   const data = await res.json();
@@ -74,7 +83,8 @@ async function callModel(model: string, apiKey: string, parts: Part[], opts: Gen
 export async function gemini(parts: Part[], opts: GenerateOptions): Promise<string> {
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) throw new AiUnavailableError();
-  const list = models();
+  const list = models().filter((m) => (restingUntil.get(m) ?? 0) <= Date.now());
+  if (!list.length) throw new Error("Gemini failed: all models resting after recent errors");
   const deadline = Date.now() + opts.timeoutMs;
   const errors: string[] = [];
   for (const [i, model] of list.entries()) {
@@ -86,6 +96,7 @@ export async function gemini(parts: Part[], opts: GenerateOptions): Promise<stri
       return await callModel(model, apiKey, parts, opts, budget);
     } catch (err) {
       if (!(err instanceof RetryableError)) throw err;
+      if (err.restMs) restingUntil.set(model, Date.now() + err.restMs);
       errors.push(err.message);
     }
   }
