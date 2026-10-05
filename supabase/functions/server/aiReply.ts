@@ -42,11 +42,37 @@ ${fenced(text)}
 Respond now. One response only. No quotation marks.`;
 }
 
-const FALLBACK_REPLIES = [
-  "something about what you wrote stayed with me. thank you for letting it out here.",
-  "that's a lot to carry. this little light is staying lit for you tonight.",
-  "your words landed somewhere soft. take a slow breath, you put it into the sky.",
-];
+// Used when the LLM is unavailable; matched to the emotion so a joyful post never gets a heavy reply.
+const FALLBACK_REPLIES: Record<string, string[]> = {
+  lonely: [
+    "this little light is staying lit next to yours tonight.",
+    "you said it out loud, and someone read it. that counts for something.",
+  ],
+  anxious: [
+    "slow breath in, slower breath out. this moment is the only one you have to hold.",
+    "your mind is running fast. it's okay to let it be loud and still be safe.",
+  ],
+  grieving: [
+    "that's a lot to carry. this little light is staying lit for you tonight.",
+    "missing them this much says so much about how much they mattered.",
+  ],
+  hopeful: [
+    "that small door opening? holding it open with you.",
+    "this has the feeling of a beginning. hope it keeps growing.",
+  ],
+  joyful: [
+    "this is wonderful news. let yourself enjoy every bit of it.",
+    "pure good news. the whole sky got a little brighter.",
+  ],
+  grateful: [
+    "moments like this are worth keeping. thank you for noticing it.",
+    "what a gentle thing to hold onto. it made this space warmer.",
+  ],
+  default: [
+    "something about what you wrote stayed with me. thank you for letting it out here.",
+    "your words landed somewhere soft. take a slow breath, you put it into the sky.",
+  ],
+};
 const CRISIS_FALLBACK =
   "this sounds so heavy, and you deserve someone with you in it right now. please reach out to someone you trust, or the helpline shown here.";
 
@@ -103,7 +129,10 @@ export async function scheduleAiReply(id: string): Promise<void> {
     console.warn("[aiReply] generation failed, using fallback:", (err as Error).message);
     content = claimed.show_help
       ? CRISIS_FALLBACK
-      : FALLBACK_REPLIES[Math.floor(Math.random() * FALLBACK_REPLIES.length)];
+      : (() => {
+        const list = FALLBACK_REPLIES[claimed.emotion ?? ""] ?? FALLBACK_REPLIES.default;
+        return list[Math.floor(Math.random() * list.length)];
+      })();
   }
 
   try {
