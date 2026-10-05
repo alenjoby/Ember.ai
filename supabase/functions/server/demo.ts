@@ -2,7 +2,7 @@
 // frontend adds a few dummy people to the online count. Autopilot: a simulated person
 // releases a new thought every DEMO_POST_EVERY_SEC while the app is open.
 // Off unless DEMO_MODE=true. Simulated content uses authorId "demo_<name>".
-import { pickPosition, supabase, VARIANTS } from "./db.ts";
+import { liveFilter, pickPosition, supabase, VARIANTS } from "./db.ts";
 import { generateLantern } from "./lantern.ts";
 import { scheduleAiReply } from "./aiReply.ts";
 
@@ -159,6 +159,7 @@ export async function demoAutopilotTick(): Promise<void> {
     .from("thoughts")
     .select("text, created_at")
     .like("author_id", "demo_%")
+    .or(liveFilter())
     .order("created_at", { ascending: false })
     .limit(200);
   if (error) return console.warn("[demo] autopilot read failed:", error.message);
