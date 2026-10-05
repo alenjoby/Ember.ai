@@ -7,7 +7,6 @@ import type { Thought, ThoughtResponse } from '../App';
 import { Lantern } from './Lantern';
 import { projectId, publicAnonKey } from '../../supabase/info';
 
-const ambientAudioUrl = "https://media.vocaroo.com/mp3/12t9rzFa7Lt4";
 
 const EMOTION_ICONS: Record<string, React.ElementType> = {
   lonely: Cloud,
@@ -156,24 +155,6 @@ const floatAnimationStyles = `
   }
 `;
 
-function PinIcon({ rotation = -10 }: { rotation?: number }) {
-  return (
-    <div
-      className="absolute flex items-center justify-center pointer-events-none"
-      style={{ top: '-4px', right: '5px', width: '30px', height: '32px', transform: `rotate(${rotation}deg)` }}
-    >
-      <div className="relative w-[26px] h-[28px]">
-        <svg className="block absolute inset-0 size-full drop-shadow-md" fill="none" viewBox="0 0 20 23">
-          <ellipse cx="10.5" cy="18" fill="#000" fillOpacity="0.4" rx="4.5" ry="2" />
-          <circle cx="10" cy="5" fill="#e6a47a" r="4" />
-          <rect fill="#1a1a1a" fillOpacity="0.9" height="10" rx="1" width="2" x="9" y="7" />
-          <circle cx="8" cy="3.5" fill="#fff" fillOpacity="0.9" r="1" />
-        </svg>
-      </div>
-    </div>
-  );
-}
-
 const ThoughtCard = React.memo(function ThoughtCard({
   thought, onClick, onReplyClick, onDragEnd, isGlowing, isHovered, scale, onHoverStart, onHoverEnd, tutorialStep = 'none'
 }: {
@@ -189,12 +170,19 @@ const ThoughtCard = React.memo(function ThoughtCard({
   const delay = -(charSum % 5);
 
   const isTutorial = thought.id === 'thought-tutorial-1';
+  const isDraggingRef = useRef(false);
 
   return (
     <motion.div
       drag={!isTutorial}
       dragMomentum={false}
+      onDragStart={() => {
+        isDraggingRef.current = true;
+      }}
       onDragEnd={(_, info) => {
+        setTimeout(() => {
+          isDraggingRef.current = false;
+        }, 60);
         onDragEnd(thought.x + info.offset.x / scale, thought.y + info.offset.y / scale);
       }}
       className="absolute cursor-grab active:cursor-grabbing z-20"
@@ -204,7 +192,7 @@ const ThoughtCard = React.memo(function ThoughtCard({
       animate={{ opacity: targetOpacity, scale: 1, y: 0 }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       onClick={(e) => {
-        if (e.defaultPrevented) return;
+        if (isDraggingRef.current || e.defaultPrevented) return;
         onClick();
       }}
       onHoverStart={onHoverStart}
@@ -239,7 +227,6 @@ const ThoughtCard = React.memo(function ThoughtCard({
           responses={thought.responses || []}
           isGlowing={isGlowing}
           isHovered={isHovered}
-          onClick={onClick}
           onReplyClick={onReplyClick}
           width={250}
         />
@@ -279,64 +266,11 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
   const [activeFilter, setActiveFilter] = useState<'all' | 'warm' | 'light'>('all');
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showEmptyState, setShowEmptyState] = useState(true);
-  const [ambientPlaying, setAmbientPlaying] = useState(true);
-  const ambientPlayingRef = useRef(true);
-  const ambientAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('ember_sound') === 'on');
 
-  // Sync ref with state to avoid stale closures in window event handlers
-  useEffect(() => {
-    ambientPlayingRef.current = ambientPlaying;
-  }, [ambientPlaying]);
-
-  useEffect(() => {
-    const audio = new Audio(ambientAudioUrl);
-    audio.loop = true;
-    audio.volume = 0.1; // Maximum lowest - 10% volume
-    ambientAudioRef.current = audio;
-
-    // Autoplay on mount
-    audio.play().catch((err) => {
-      console.warn("Autoplay blocked. Audio will play on first user interaction.", err);
-    });
-
-    // Fallback: resume playing on first user click or keypress if blocked
-    const handleFirstInteraction = () => {
-      // Only play if the user hasn't explicitly toggled it off
-      if (ambientPlayingRef.current && ambientAudioRef.current && ambientAudioRef.current.paused) {
-        ambientAudioRef.current.play().catch((e) => console.warn("Failed to resume audio:", e));
-      }
-      window.removeEventListener('click', handleFirstInteraction);
-      window.removeEventListener('keydown', handleFirstInteraction);
-    };
-
-    window.addEventListener('click', handleFirstInteraction);
-    window.addEventListener('keydown', handleFirstInteraction);
-
-    return () => {
-      audio.pause();
-      window.removeEventListener('click', handleFirstInteraction);
-      window.removeEventListener('keydown', handleFirstInteraction);
-    };
-  }, []);
-
-  // Sync ambientPlaying state with the actual audio element
-  useEffect(() => {
-    const audio = ambientAudioRef.current;
-    if (!audio) return;
-    if (ambientPlaying) {
-      if (audio.paused) {
-        audio.play().catch((err) => console.warn("Audio play error:", err));
-      }
-    } else {
-      if (!audio.paused) {
-        audio.pause();
-      }
-    }
-  }, [ambientPlaying]);
-
-  const toggleAmbient = async () => {
-    const nextState = !ambientPlaying;
-    setAmbientPlaying(nextState);
+  const toggleSound = async () => {
+    const nextState = !soundEnabled;
+    setSoundEnabled(nextState);
     localStorage.setItem('ember_sound', nextState ? 'on' : 'off');
     if (nextState) {
       try {
@@ -722,19 +656,20 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
             borderColor: 'rgba(214,106,62,0.3)'
           }}
         >
-          {/* Ambient Audio Toggle */}
+          {/* Procedural Lantern Audio Toggle */}
           <motion.button
-            onClick={toggleAmbient}
+            onClick={toggleSound}
             className={`w-[36px] h-[36px] sm:w-[40px] sm:h-[40px] rounded-full border flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D66A3E] flex-shrink-0 cursor-pointer ${
-              ambientPlaying
+              soundEnabled
                 ? 'bg-[rgba(214,106,62,0.15)] border-[rgba(214,106,62,0.4)] text-[#D66A3E]'
                 : 'bg-[rgba(255,255,255,0.05)] border-[rgba(255,255,255,0.1)] text-[#a89992] hover:text-[#f9f3eb] hover:bg-[rgba(255,255,255,0.1)]'
             }`}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            aria-label="Toggle Ambient Sound"
+            aria-label="Toggle Lantern Audio"
+            title={soundEnabled ? "Procedural lantern audio enabled" : "Audio muted (click to enable)"}
           >
-            {ambientPlaying ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </motion.button>
 
           {/* About Button */}
