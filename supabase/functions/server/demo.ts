@@ -151,7 +151,7 @@ export async function demoAutopilotTick(): Promise<void> {
   const used = new Set(recent.map((r) => r.text));
   const fresh = THOUGHTS.filter((t) => !used.has(t.text));
   const { text, emotion } = pick(fresh.length ? fresh : THOUGHTS);
-  const pos = await pickPosition();
+  const pos = await pickPosition(emotion);
 
   const { data: row, error: insErr } = await supabase
     .from("thoughts")

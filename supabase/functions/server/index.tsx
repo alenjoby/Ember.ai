@@ -28,7 +28,7 @@ import {
   verifyAdminPasscode,
   verifyAdminToken,
 } from "./security.ts";
-import { generateLantern } from "./lantern.ts";
+import { generateLantern, guessEmotion } from "./lantern.ts";
 import { scheduleAiReply } from "./aiReply.ts";
 import { demoAutopilotTick, demoEnabled, demoOnline, scheduleDemoReplies } from "./demo.ts";
 
@@ -186,7 +186,7 @@ app.post("/thoughts", async (c) => {
   const verdict = await moderateText(text);
   if (!verdict.allowed) return blocked(c, verdict.reason, verdict.severity as "mild");
 
-  const pos = await pickPosition();
+  const pos = await pickPosition((emotion as string | null) ?? guessEmotion(text));
   const { data: row, error } = await supabase
     .from("thoughts")
     .insert({

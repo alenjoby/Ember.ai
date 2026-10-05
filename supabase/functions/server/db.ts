@@ -150,22 +150,53 @@ export async function removeMedia(urls: (string | null | undefined)[]): Promise<
   if (error) console.warn("[media] remove failed:", error.message);
 }
 
-/** 12 random candidates in ±900 px; keep the one farthest from existing thoughts. */
-export async function pickPosition(): Promise<{ x: number; y: number }> {
+const MIN_GAP = 260; // keep cards from overlapping
+
+type Point = { x: number; y: number };
+const nearest = (p: Point, others: Point[]) =>
+  others.length ? Math.min(...others.map((o) => Math.hypot(o.x - p.x, o.y - p.y))) : Infinity;
+
+/**
+ * Place a new thought. With an emotion that already has thoughts: near a same-emotion
+ * thought (260–420 px away) so moods form small constellations for the connection threads.
+ * Otherwise (or if that area is full): 12 random candidates in ±900 px, farthest from all.
+ */
+export async function pickPosition(emotion?: string | null): Promise<Point> {
   const { data } = await supabase
     .from("thoughts")
-    .select("x, y")
+    .select("x, y, emotion")
     .eq("hidden", false)
     .order("created_at", { ascending: false })
     .limit(200);
   const existing = data ?? [];
-  let best = { x: 0, y: 0 };
+
+  const peers = emotion ? existing.filter((t) => t.emotion === emotion).slice(0, 8) : [];
+  if (peers.length) {
+    let best: Point | null = null;
+    let bestScore = Infinity;
+    for (let i = 0; i < 24; i++) {
+      const anchor = peers[Math.floor(Math.random() * peers.length)];
+      const angle = Math.random() * Math.PI * 2;
+      const r = 260 + Math.random() * 160;
+      const cand = {
+        x: Math.round(Math.max(-1400, Math.min(1400, anchor.x + Math.cos(angle) * r))),
+        y: Math.round(Math.max(-1400, Math.min(1400, anchor.y + Math.sin(angle) * r))),
+      };
+      if (nearest(cand, existing) < MIN_GAP) continue;
+      const score = nearest(cand, peers); // closer to its own mood is better
+      if (score < bestScore) {
+        best = cand;
+        bestScore = score;
+      }
+    }
+    if (best) return best;
+  }
+
+  let best: Point = { x: 0, y: 0 };
   let bestDist = -1;
   for (let i = 0; i < 12; i++) {
     const cand = { x: Math.round(Math.random() * 1800 - 900), y: Math.round(Math.random() * 1800 - 900) };
-    const dist = existing.length
-      ? Math.min(...existing.map((p) => Math.hypot(p.x - cand.x, p.y - cand.y)))
-      : Infinity;
+    const dist = nearest(cand, existing);
     if (dist > bestDist) {
       best = cand;
       bestDist = dist;
