@@ -11,6 +11,8 @@ import { supabase } from './supabaseClient';
 import { ScreenGlow } from './components/ScreenGlow';
 import { Onboarding } from './components/Onboarding';
 import { Sparkles } from 'lucide-react';
+import { api } from './api';
+import fixtureThoughts from '../fixtures/thoughts.json';
 
 const getAnonUserId = () => {
   let uid = localStorage.getItem('anon_user_id');
@@ -43,11 +45,15 @@ export interface Thought {
   y: number;
   variant: 'warm' | 'light' | 'teal' | 'rose';
   responses: ThoughtResponse[];
-  aiResponded: boolean;
+  aiResponded?: boolean;
   glowing?: boolean;
   width: number;
   authorId?: string;
   emotion?: string;
+  aiStatus?: 'waiting' | 'replying' | 'done' | 'skipped';
+  lantern?: any;
+  showHelp?: boolean;
+  isExample?: boolean;
 }
 
 const getRandomOffset = (range: number) => (Math.random() - 0.5) * range;
@@ -124,7 +130,17 @@ export default function App() {
         return [...parsedData, ...localOnly];
       });
     } catch (err) {
-      console.error('Error fetching thoughts:', err);
+      console.warn('Live API unavailable or empty, populating initial fixture lanterns:', err);
+      // Fallback to rich fixtures
+      const parsedFixtures = (fixtureThoughts as any[]).map((t: any) => ({
+        ...t,
+        timestamp: new Date(t.timestamp),
+        responses: (t.responses || []).map((r: any) => ({
+          ...r,
+          timestamp: new Date(r.timestamp),
+        })),
+      }));
+      setThoughts(prev => (prev.length > 0 ? prev : parsedFixtures));
     } finally {
       if (loadingRef.current) {
         loadingRef.current = false;

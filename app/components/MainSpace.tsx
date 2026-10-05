@@ -4,6 +4,7 @@ import {
   ZoomIn, ZoomOut, Focus, Mic, Feather, Brush, Sparkles, Cloud, Flower2, Waves, Sun, Droplet, Heart, Info, Volume2, VolumeX
 } from 'lucide-react';
 import type { Thought, ThoughtResponse } from '../App';
+import { Lantern } from './Lantern';
 import { projectId, publicAnonKey } from '../../supabase/info';
 
 const ambientAudioUrl = "https://media.vocaroo.com/mp3/12t9rzFa7Lt4";
@@ -414,58 +415,16 @@ const ThoughtCard = React.memo(function ThoughtCard({
           />
         )}
 
-        <motion.div
-          className={[
-            'relative overflow-hidden px-6 py-6 pr-10 transition-all duration-300 backdrop-blur-md',
-            cardClass
-          ].join(' ')}
-          style={{ 
-            borderRadius: cardRadius,
-            skewX: -8,
-          }}
-          whileHover={{
-            scale: 1.025,
-            y: -6,
-            ...hoverStyle
-          }}
-        >
-          {/* Radial Core Glow inside card */}
-          <div 
-            className="absolute inset-0 pointer-events-none z-0" 
-            style={radialGlowStyle}
-          />
-
-            {/* Unskew Content wrapper to keep text/star upright */}
-            <div style={{ skewX: 8 } as React.CSSProperties} className="relative z-10 flex flex-col items-center text-center max-w-[280px]">
-              {/* Star Anchor (Vertex) */}
-              <div className="absolute top-[-10px] right-[-10px] w-4 h-4 pointer-events-none">
-                <svg viewBox="0 0 24 24" className={`${starClass} fill-current`} style={{ filter: starFilter }}>
-                  <path d="M12,2 L14.5,9.5 L22,12 L14.5,14.5 L12,22 L9.5,14.5 L2,12 L9.5,9.5 Z" />
-                </svg>
-              </div>
-              
-              {thought.emotion && EMOTION_ICONS[thought.emotion] && (() => {
-                const Icon = EMOTION_ICONS[thought.emotion];
-                return (
-                  <div className="text-[#8a7f79] opacity-60 mb-2 flex justify-center">
-                    <Icon size={18} />
-                  </div>
-                );
-              })()}
-              
-              <p className="text-[#f9f3eb] text-[18px] leading-[1.48] not-italic select-none whitespace-pre-wrap break-words [overflow-wrap:anywhere] line-clamp-5" style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 400, letterSpacing: '0.01em', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-                {thought.text}
-              </p>
-
-            {isGlowing && (
-              <motion.div className="flex justify-center mt-3" initial={{ opacity: 0 }} animate={{ opacity: [0.4, 0.9, 0.4] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 1 }}>
-                <span className="text-[#D66A3E]" style={{ fontFamily: "'Alegreya', serif", fontWeight: 700, fontSize: '10px', letterSpacing: '0.15em', textShadow: '0 0 10px rgba(214,106,62,0.5)' }}>
-                  ✦ Ember
-                </span>
-              </motion.div>
-            )}
-          </div>
-        </motion.div>
+        <Lantern
+          lantern={thought.lantern || null}
+          text={thought.text}
+          emotion={thought.emotion as any}
+          aiStatus={thought.aiStatus || (thought.aiResponded ? 'done' : 'waiting')}
+          isExample={thought.isExample}
+          replyCount={thought.responses.length}
+          isSelected={isGlowing}
+          width={thought.width || 280}
+        />
       </div>
     </motion.div>
   );
@@ -557,8 +516,20 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
     }
   }, [ambientPlaying]);
 
-  const toggleAmbient = () => {
-    setAmbientPlaying((prev) => !prev);
+  const toggleAmbient = async () => {
+    const nextState = !ambientPlaying;
+    setAmbientPlaying(nextState);
+    localStorage.setItem('ember_sound', nextState ? 'on' : 'off');
+    if (nextState) {
+      try {
+        const Tone = await import('tone');
+        if (Tone.context.state !== 'running') {
+          await Tone.start();
+        }
+      } catch (err) {
+        console.warn('Tone.start failed on user toggle:', err);
+      }
+    }
   };
   const handleLogoDoubleClick = async () => {
     if (localStorage.getItem("ember_admin") === "true") {

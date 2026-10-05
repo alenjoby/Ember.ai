@@ -12,6 +12,9 @@ import { ScreenGlow } from './ScreenGlow';
 import { StickerIcon } from './StickerIcon';
 import { detectNegativity, getVoiceReminder } from '../safeSpace';
 import { SafeSpaceGuard, SafeSpaceInline } from './SafeSpaceGuard';
+import { AiLabel } from './AiLabel';
+import { CrisisCard } from './CrisisCard';
+import { useLanternSound } from './useLanternSound';
 
 
 interface Props {
@@ -560,9 +563,7 @@ function VoicePlayer({ response, isAI, timeStr, onDeleteReply }: { response: Tho
         <div className="flex items-center justify-between text-[11.5px] text-[#8a7f79] relative">
           <span className="flex items-center gap-1 font-bold" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
             {isAI ? (
-              <>
-                <span className="text-[#D66A3E] animate-pulse">✦</span> Ember
-              </>
+              <AiLabel />
             ) : (
               'someone'
             )}
@@ -623,10 +624,10 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
         </div>
         <div className="flex items-center justify-between w-full relative">
           <span
-            className="text-[#8a7f79] text-[12px]"
+            className="text-[#8a7f79] text-[12px] flex items-center gap-1.5"
             style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
           >
-            {isAI ? '✦ Ember' : 'someone'} sent a sticker · {timeStr}
+            {isAI ? <AiLabel /> : 'someone'} sent a sticker · {timeStr}
           </span>
           {localStorage.getItem('ember_admin') === 'true' && onDeleteReply && (
             <button
@@ -719,9 +720,7 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
       <div className="flex items-center justify-between text-[11.5px] text-[#8a7f79] mt-3.5 relative">
         <span className="flex items-center gap-1 font-bold" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
           {isAI ? (
-            <>
-              <span className="text-[#D66A3E] animate-pulse">✦</span> Ember
-            </>
+            <AiLabel />
           ) : (
             'someone'
           )}
@@ -774,6 +773,10 @@ export function ThoughtDetailModal({ thought, onClose, onAddResponse, onOpenDraw
   const responsesEndRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [showHugPulse, setShowHugPulse] = useState(false);
+
+  // Hook up Tone.js soundscape for opened thought
+  const soundEnabled = localStorage.getItem('ember_sound') === 'on';
+  useLanternSound(thought.lantern || null, soundEnabled);
 
   useEffect(() => {
     responsesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -864,6 +867,13 @@ export function ThoughtDetailModal({ thought, onClose, onAddResponse, onOpenDraw
 
         {/* Main content wrapper (blurred during tutorial reply step) */}
         <div className={tutorialStep === 'reply' ? 'flex-1 flex flex-col min-h-0 blur-[3px] opacity-40 pointer-events-none transition-all duration-300' : 'flex-1 flex flex-col min-h-0 transition-all duration-300'}>
+          {/* Crisis Help Card if flagged */}
+          {thought.showHelp && (
+            <div className="px-4 pt-4 sm:px-6">
+              <CrisisCard inline />
+            </div>
+          )}
+
           {/* Thought display — Deep Card */}
           <div className="px-4 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-5">
             <div
