@@ -605,6 +605,7 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
       const deactivate = window.confirm("Deactivate Admin mode?");
       if (deactivate) {
         localStorage.removeItem("ember_admin");
+        localStorage.removeItem("ember_admin_token");
         alert("Admin mode deactivated.");
         window.location.reload();
       }
@@ -625,6 +626,7 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
         const result = await response.json();
         if (result.success) {
           localStorage.setItem("ember_admin", "true");
+          localStorage.setItem("ember_admin_token", code.trim());
           alert("Admin mode activated. Trash icons are now visible next to all thoughts and replies.");
           window.location.reload();
         } else {

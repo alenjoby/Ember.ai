@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface ComposeModalProps {
   onClose: () => void;
-  onSubmit: (text: string, emotion?: string) => void;
+  onSubmit: (text: string, emotion?: string) => Promise<void> | void;
 }
 
 import { Cloud, Flower2, Waves, Sun, Droplet, Sparkles, Heart, Shield } from 'lucide-react';
@@ -83,12 +83,15 @@ export function ComposeModal({ onClose, onSubmit }: ComposeModalProps) {
       console.error("Gemini safety check failed, falling back to local client filter:", err);
     }
 
-    setTimeout(() => {
-      onSubmit(text.trim(), emotion);
+    try {
+      await onSubmit(text.trim(), emotion);
       setText('');
       setEmotion(undefined);
+    } catch (err) {
+      console.warn("Could not release thought, keeping draft text:", err);
+    } finally {
       setIsReleasing(false);
-    }, 450);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

@@ -20,7 +20,7 @@ import { useLanternSound } from './useLanternSound';
 interface Props {
   thought: Thought;
   onClose: () => void;  
-  onAddResponse: (response: Omit<ThoughtResponse, 'id' | 'timestamp'>) => void;
+  onAddResponse: (response: Omit<ThoughtResponse, 'id' | 'timestamp'>) => Promise<void> | void;
   onOpenDraw: () => void;
   onDeleteThought?: (id: string) => void;
   onDeleteReply?: (thoughtId: string, replyId: string) => void;
@@ -95,16 +95,17 @@ function relativeTime(date: Date): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function NoteTab({ onSend }: { onSend: (text: string) => void }) {
+function NoteTab({ onSend }: { onSend: (text: string) => Promise<void> | void }) {
   const [text, setText] = useState('');
   const [showGuard, setShowGuard] = useState(false);
   const [guardMessage, setGuardMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
   // Real-time negativity detection as user types
   const safeCheck = useMemo(() => detectNegativity(text), [text]);
 
-  const handleSend = () => {
-    if (!text.trim()) return;
+  const handleSend = async () => {
+    if (!text.trim() || isSending) return;
     // Check for negativity before sending
     const result = detectNegativity(text);
     if (!result.allowed) {
@@ -112,8 +113,15 @@ function NoteTab({ onSend }: { onSend: (text: string) => void }) {
       setShowGuard(true);
       return;
     }
-    onSend(text.trim());
-    setText('');
+    setIsSending(true);
+    try {
+      await onSend(text.trim());
+      setText('');
+    } catch (err) {
+      console.warn("Could not send note, preserving text:", err);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (

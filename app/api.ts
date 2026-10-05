@@ -4,7 +4,7 @@ import fixtureThoughts from '../fixtures/thoughts.json';
 
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/server`;
 
-const getHeaders = (token?: string): Record<string, string> => {
+const getHeaders = (token?: string, adminToken?: string): Record<string, string> => {
   const headers: Record<string, string> = {
     'apikey': publicAnonKey,
     'Authorization': `Bearer ${publicAnonKey}`,
@@ -12,6 +12,10 @@ const getHeaders = (token?: string): Record<string, string> => {
   };
   if (token) {
     headers['X-Owner-Token'] = token;
+  }
+  const resolvedAdminToken = adminToken || localStorage.getItem('ember_admin_token') || (localStorage.getItem('ember_admin') === 'true' ? 'admin' : undefined);
+  if (resolvedAdminToken) {
+    headers['X-Admin-Token'] = resolvedAdminToken;
   }
   return headers;
 };
@@ -41,7 +45,9 @@ export const saveOwnerToken = (id: string, token: string) => {
 
 export const api = {
   /**
-   * Fetch all thoughts with fallback to fixtures during Day 1 development / cold starts
+   * Fetch all thoughts.
+   * If server returns an array (including an empty array []), return it as-is.
+   * Only fall back to fixtures if the network or endpoint completely fails to respond.
    */
   async getThoughts(): Promise<Thought[]> {
     try {
@@ -51,19 +57,20 @@ export const api = {
       });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           return data;
         }
       }
     } catch (err) {
-      console.warn('API getThoughts failed or server not ready, using fixtures:', err);
+      console.warn('API getThoughts failed or server not ready, using fixtures as fallback:', err);
+      return fixtureThoughts as unknown as Thought[];
     }
-    // Return fixture thoughts so UI functions immediately
-    return fixtureThoughts as unknown as Thought[];
+    return [];
   },
 
   /**
-   * Create a new thought (Server owns write, ID, positions, and returns ownerToken)
+   * Create a new thought (Server owns write, ID, positions, and returns ownerToken).
+   * Never fakes a local post on refusal or network error.
    */
   async createThought(payload: {
     text: string;
@@ -71,82 +78,42 @@ export const api = {
     authorId: string;
     country?: string;
   }): Promise<{ thought: Thought; ownerToken: string; helpline?: Helpline } | Blocked> {
-    try {
-      const res = await fetch(`${SERVER_URL}/thoughts`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload),
-      });
+    const res = await fetch(`${SERVER_URL}/thoughts`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(payload),
+    });
 
-      if (res.status === 422) {
-        const blocked: Blocked = await res.json();
-        return blocked;
-      }
-
-      if (res.status === 429) {
-        throw new Error('Rate limited. Please take a breath and try again shortly.');
-      }
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.ownerToken && data.thought?.id) {
-          saveOwnerToken(data.thought.id, data.ownerToken);
-        }
-        return data;
-      }
-    } catch (err) {
-      console.warn('Create thought server request failed, generating client fallback preview:', err);
+    if (res.status === 422) {
+      const blocked: Blocked = await res.json();
+      return blocked;
     }
 
-    // Client-side fallback for Day 1 offline UI work
-    const fallbackId = 'thought_' + Date.now();
-    const fallbackToken = 'token_' + Math.random().toString(36).slice(2);
-    saveOwnerToken(fallbackId, fallbackToken);
+    if (res.status === 429) {
+      throw new Error('Take a breath, try again in a minute.');
+    }
 
-    const fallbackThought: Thought = {
-      id: fallbackId,
-      text: payload.text,
-      timestamp: new Date().toISOString(),
-      rotation: (Math.random() - 0.5) * 4,
-      x: 600 + (Math.random() - 0.5) * 200,
-      y: 400 + (Math.random() - 0.5) * 200,
-      width: 290,
-      variant: 'warm',
-      emotion: payload.emotion,
-      authorId: payload.authorId,
-      responses: [],
-      aiStatus: 'waiting',
-      lantern: {
-        palette: ['#fde047', '#f97316', '#7c2d12'],
-        glow: 0.85,
-        flicker: 0.4,
-        shape: 'round',
-        sound: {
-          mood: 'night',
-          instrument: 'pad',
-          key: 'D minor',
-          tempo: 54,
-        },
-        caption: 'warm flame in the night',
-      },
-      showHelp: false,
-      isExample: false,
-    };
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({}));
+      const message = errorBody?.error?.message || `Server error (${res.status}). Your thought was not sent.`;
+      throw new Error(message);
+    }
 
-    return {
-      thought: fallbackThought,
-      ownerToken: fallbackToken,
-    };
+    const data = await res.json();
+    if (data.ownerToken && data.thought?.id) {
+      saveOwnerToken(data.thought.id, data.ownerToken);
+    }
+    return data;
   },
 
   /**
-   * Delete a thought with owner token
+   * Delete a thought with owner token or admin token
    */
-  async deleteThought(id: string, token: string): Promise<boolean> {
+  async deleteThought(id: string, token?: string, adminToken?: string): Promise<boolean> {
     try {
       const res = await fetch(`${SERVER_URL}/thoughts/${id}`, {
         method: 'DELETE',
-        headers: getHeaders(token),
+        headers: getHeaders(token, adminToken),
       });
       return res.status === 204 || res.ok;
     } catch (err) {
@@ -156,7 +123,8 @@ export const api = {
   },
 
   /**
-   * Add a reply to a thought
+   * Add a reply to a thought.
+   * Never fakes a local reply on refusal or network error.
    */
   async addReply(
     thoughtId: string,
@@ -169,55 +137,45 @@ export const api = {
       authorId: string;
     }
   ): Promise<{ reply: ThoughtResponse; ownerToken: string } | Blocked> {
-    try {
-      const res = await fetch(`${SERVER_URL}/thoughts/${thoughtId}/replies`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(body),
-      });
+    const res = await fetch(`${SERVER_URL}/thoughts/${thoughtId}/replies`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(body),
+    });
 
-      if (res.status === 422) {
-        return (await res.json()) as Blocked;
-      }
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.ownerToken && data.reply?.id) {
-          saveOwnerToken(data.reply.id, data.ownerToken);
-        }
-        return data;
-      }
-    } catch (err) {
-      console.warn('Add reply request failed, creating local preview:', err);
+    if (res.status === 422) {
+      return (await res.json()) as Blocked;
     }
 
-    const replyId = 'reply_' + Date.now();
-    const token = 'token_' + Math.random().toString(36).slice(2);
-    saveOwnerToken(replyId, token);
+    if (res.status === 429) {
+      throw new Error('Take a breath, try again in a minute.');
+    }
 
-    return {
-      reply: {
-        id: replyId,
-        type: body.type,
-        content: body.content || '',
-        timestamp: new Date().toISOString(),
-        isAI: false,
-        drawingData: body.drawingData,
-        audioUrl: body.audioData,
-        authorId: body.authorId,
-      },
-      ownerToken: token,
-    };
+    if (res.status === 413) {
+      throw new Error("That's a bit too long, try a shorter recording or drawing.");
+    }
+
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({}));
+      const message = errorBody?.error?.message || `Server error (${res.status}). Your reply was not sent.`;
+      throw new Error(message);
+    }
+
+    const data = await res.json();
+    if (data.ownerToken && data.reply?.id) {
+      saveOwnerToken(data.reply.id, data.ownerToken);
+    }
+    return data;
   },
 
   /**
-   * Delete a reply
+   * Delete a reply with owner token or admin token
    */
-  async deleteReply(thoughtId: string, replyId: string, token: string): Promise<boolean> {
+  async deleteReply(thoughtId: string, replyId: string, token?: string, adminToken?: string): Promise<boolean> {
     try {
       const res = await fetch(`${SERVER_URL}/thoughts/${thoughtId}/replies/${replyId}`, {
         method: 'DELETE',
-        headers: getHeaders(token),
+        headers: getHeaders(token, adminToken),
       });
       return res.status === 204 || res.ok;
     } catch (err) {
