@@ -11,8 +11,10 @@ import { supabase } from './supabaseClient';
 import { ScreenGlow } from './components/ScreenGlow';
 import { Onboarding } from './components/Onboarding';
 import { Sparkles } from 'lucide-react';
-import { api } from './api';
+import { api, getOwnerToken } from './api';
 import fixtureThoughts from '../fixtures/thoughts.json';
+import { CrisisCard, detectBrowserCountry } from './components/CrisisCard';
+import type { Helpline } from './types';
 
 const getAnonUserId = () => {
   let uid = localStorage.getItem('anon_user_id');
@@ -78,6 +80,7 @@ export default function App() {
   const [showDrawModal, setShowDrawModal] = useState(false);
   const [aiGlowThoughtId, setAiGlowThoughtId] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [crisisHelpline, setCrisisHelpline] = useState<Helpline | null>(null);
   const [tutorialStep, setTutorialStep] = useState<TutorialStep>('none');
   const [tutorialReplies, setTutorialReplies] = useState<ThoughtResponse[]>([]);
 
@@ -267,14 +270,8 @@ export default function App() {
       setActiveView('space');
       setSelectedThought(null);
 
-      const response = await fetch(`${SERVER_URL}/thoughts/${thoughtId}`, {
-        method: 'DELETE',
-        headers: {
-          'apikey': publicAnonKey,
-          'Authorization': `Bearer ${publicAnonKey}`
-        }
-      });
-      if (!response.ok) throw new Error(`Delete error: ${response.status}`);
+      const token = getOwnerToken(thoughtId) || '';
+      await api.deleteThought(thoughtId, token);
     } catch (err) {
       console.error("Error deleting thought:", err);
       fetchThoughts();
@@ -286,12 +283,9 @@ export default function App() {
     if (!confirmDelete) return;
 
     try {
-      let updatedThought: Thought | null = null;
       setThoughts(prev => prev.map(t => {
         if (t.id === thoughtId) {
-          const filteredResponses = t.responses.filter(r => r.id !== replyId);
-          updatedThought = { ...t, responses: filteredResponses };
-          return updatedThought;
+          return { ...t, responses: t.responses.filter(r => r.id !== replyId) };
         }
         return t;
       }));
@@ -303,18 +297,8 @@ export default function App() {
         return prev;
       });
 
-      if (updatedThought) {
-        const response = await fetch(`${SERVER_URL}/thoughts`, {
-          method: 'POST',
-          headers: {
-            'apikey': publicAnonKey,
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(updatedThought)
-        });
-        if (!response.ok) throw new Error(`Update error: ${response.status}`);
-      }
+      const token = getOwnerToken(replyId) || '';
+      await api.deleteReply(thoughtId, replyId, token);
     } catch (err) {
       console.error("Error deleting reply:", err);
       fetchThoughts();
@@ -366,146 +350,42 @@ export default function App() {
     
     const base = basePositions[Math.floor(Math.random() * basePositions.length)];
     
-    const newThought: Thought = {
-      id: Date.now().toString(),
-      text,
-      timestamp: new Date(),
-      rotation: getRandomOffset(10),
-      x: base.x + getRandomOffset(200),
-      y: base.y + getRandomOffset(200),
-      variant: (['warm', 'light', 'teal', 'rose'] as const)[Math.floor(Math.random() * 4)],
-      width: 280 + Math.floor(Math.random() * 60),
-      responses: [],
-      aiResponded: false,
-      authorId: anonUserId,
-      emotion,
-    };
-
-    setThoughts(prev => [...prev, newThought]);
-    setActiveView('space');
-
-    // Save directly to KV table — consistent with how we read
+    const country = detectBrowserCountry();
     try {
-      const response = await fetch(`${SERVER_URL}/thoughts`, {
-        method: 'POST',
-        headers: {
-          'apikey': publicAnonKey,
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newThought)
+      const res = await api.createThought({
+        text,
+        emotion: emotion as any,
+        authorId: anonUserId,
+        country,
       });
-      if (!response.ok) throw new Error(`Save error: ${response.status}`);
-    } catch (err) {
-      console.error('Error saving thought:', err);
-    }
 
-    // AI fallback after 10s if no human responses
-    setTimeout(async () => {
-      setThoughts(prev => {
-        const currentThought = prev.find(th => th.id === newThought.id);
-        
-        // Only trigger AI response if there is at most 1 user online (only the author is online)
-        const shouldTriggerAI = currentThought && 
-                                currentThought.responses.length === 0 && 
-                                !currentThought.aiResponded && 
-                                voiceCountRef.current <= 1;
-        
-        if (shouldTriggerAI) {
-          console.log('Triggering AI response flow for thought:', newThought.id);
-          setAiGlowThoughtId(newThought.id);
-          
-          // Trigger AI Generation and voice synthesis
-          (async () => {
-            try {
-              // 1. Generate support response text (Gemini API via server function)
-              const aiResponseRaw = await fetch(`${SERVER_URL}/generate-support`, {
-                method: 'POST',
-                headers: {
-                  'apikey': publicAnonKey,
-                  'Authorization': `Bearer ${publicAnonKey}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ thoughtText: text, emotion })
-              });
-              if (!aiResponseRaw.ok) throw new Error(`Gemini error: ${aiResponseRaw.status}`);
-              const aiData = await aiResponseRaw.json();
-              const message = aiData?.response || "I'm holding space for you.";
+      if ('blocked' in res && res.blocked) {
+        alert(res.reason || "This message couldn't be released.");
+        return;
+      }
 
-              // 2. Synthesize TTS voice (ElevenLabs API via server function)
-              let audioUrl = "";
-              try {
-                const ttsResponseRaw = await fetch(`${SERVER_URL}/text-to-speech`, {
-                  method: 'POST',
-                  headers: {
-                    'apikey': publicAnonKey,
-                    'Authorization': `Bearer ${publicAnonKey}`,
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({ text: message })
-                });
-                if (ttsResponseRaw.ok) {
-                  const ttsData = await ttsResponseRaw.json();
-                  audioUrl = ttsData?.url || "";
-                }
-              } catch (ttsErr) {
-                console.error('TTS synthesis error:', ttsErr);
-              }
+      if ('thought' in res) {
+        const created: Thought = {
+          ...res.thought,
+          timestamp: new Date(res.thought.timestamp),
+          responses: (res.thought.responses || []).map((r: any) => ({
+            ...r,
+            timestamp: new Date(r.timestamp),
+          })),
+        };
 
-              // 3. Play generated voice audio on the website
-              if (audioUrl) {
-                const audio = new Audio(audioUrl);
-                audio.onended = () => setGlobalAiAudioPlaying(false);
-                audio.play()
-                  .then(() => setGlobalAiAudioPlaying(true))
-                  .catch(e => {
-                    console.error("Audio playback error:", e);
-                    setGlobalAiAudioPlaying(false);
-                  });
-              }
+        setThoughts(prev => [...prev.filter(t => t.id !== created.id), created]);
+        setActiveView('space');
 
-              const aiResponse: ThoughtResponse = {
-                id: 'ai-' + Date.now(),
-                type: 'voice',
-                content: message, // Save text transcript
-                timestamp: new Date(),
-                isAI: true,
-                audioUrl: audioUrl || undefined,
-              };
-
-              setThoughts(prev2 => prev2.map(th => {
-                if (th.id === newThought.id) {
-                  const updated = {
-                    ...th,
-                    aiResponded: true,
-                    glowing: false,
-                    responses: [...th.responses, aiResponse],
-                  };
-                  // Sync updated state to KV table
-                  fetch(`${SERVER_URL}/thoughts`, {
-                    method: 'POST',
-                    headers: {
-                      'apikey': publicAnonKey,
-                      'Authorization': `Bearer ${publicAnonKey}`,
-                      'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(updated)
-                  }).then(res => { if (!res.ok) console.error('Error syncing AI response:', res.statusText); });
-                  return updated;
-                }
-                return th;
-              }));
-            } catch (err) {
-              console.error('AI Flow Error:', err);
-            } finally {
-              setAiGlowThoughtId(null);
-            }
-          })();
+        if (res.helpline) {
+          setCrisisHelpline(res.helpline);
         }
-        return prev;
-      });
-    }, 10000);
-  }, []);
+      }
+    } catch (err: any) {
+      console.error('Error creating thought:', err);
+      alert(err.message || 'Network error while releasing thought.');
+    }
+  }, [anonUserId]);
 
   const handleAddResponse = useCallback(async (
     thoughtId: string,
@@ -519,57 +399,67 @@ export default function App() {
     };
 
     if (thoughtId === 'thought-tutorial-1') {
-      setTutorialReplies(prev => [...prev, newResponse]);
+      const mockReply: ThoughtResponse = {
+        ...response,
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        authorId: anonUserId,
+      };
+      setTutorialReplies(prev => [...prev, mockReply]);
       setTimeout(() => {
         setTutorialStep('complete');
       }, 1500);
       return;
     }
 
-    setThoughts(prev => {
-      const updatedThoughts = prev.map(t => {
-        if (t.id === thoughtId) {
-          const updated = { ...t, responses: [...t.responses, newResponse] };
-          // Sync to KV table
-          fetch(`${SERVER_URL}/thoughts`, {
-            method: 'POST',
-            headers: {
-              'apikey': publicAnonKey,
-              'Authorization': `Bearer ${publicAnonKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(updated)
-          }).then(res => { if (!res.ok) console.error('Error syncing response:', res.statusText); });
-          return updated;
-        }
-        return t;
+    try {
+      const res = await api.addReply(thoughtId, {
+        type: response.type,
+        content: response.content,
+        drawingData: response.drawingData,
+        audioData: response.audioUrl,
+        authorId: anonUserId,
       });
-      
-      const updatedSelected = updatedThoughts.find(t => t.id === thoughtId);
-      if (updatedSelected) setSelectedThought(updatedSelected);
-      
-      return updatedThoughts;
-    });
-  }, []);
+
+      if ('blocked' in res && res.blocked) {
+        alert(res.reason || "This reply couldn't be sent.");
+        return;
+      }
+
+      if ('reply' in res) {
+        const replyObj: ThoughtResponse = {
+          ...res.reply,
+          timestamp: new Date(res.reply.timestamp),
+        };
+
+        setThoughts(prev => {
+          const updated = prev.map(t => {
+            if (t.id === thoughtId) {
+              return { ...t, responses: [...t.responses, replyObj] };
+            }
+            return t;
+          });
+          const updatedSelected = updated.find(t => t.id === thoughtId);
+          if (updatedSelected) setSelectedThought(updatedSelected);
+          return updated;
+        });
+      }
+    } catch (err: any) {
+      console.error('Error adding reply:', err);
+      alert(err.message || 'Failed to send reply.');
+    }
+  }, [anonUserId]);
 
   const handleThoughtMove = useCallback((id: string, x: number, y: number) => {
-    setThoughts(prev => prev.map(t => {
-      if (t.id === id) {
-        const updated = { ...t, x, y };
-        // Sync position to KV table
-        fetch(`${SERVER_URL}/thoughts`, {
-          method: 'POST',
-          headers: {
-            'apikey': publicAnonKey,
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(updated)
-        }).then(res => { if (!res.ok) console.error('Error syncing position:', res.statusText); });
-        return updated;
-      }
-      return t;
-    }));
+    try {
+      const raw = localStorage.getItem('ember_positions');
+      const positions = raw ? JSON.parse(raw) : {};
+      positions[id] = { x, y };
+      localStorage.setItem('ember_positions', JSON.stringify(positions));
+    } catch (e) {
+      console.warn('Could not save ember_positions to localStorage:', e);
+    }
+    setThoughts(prev => prev.map(t => (t.id === id ? { ...t, x, y } : t)));
   }, []);
 
   const handleSendDrawing = useCallback((drawingData: string) => {
@@ -754,6 +644,17 @@ export default function App() {
             onClose={() => setShowDrawModal(false)}
             onSend={handleSendDrawing}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {crisisHelpline && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <CrisisCard
+              helpline={crisisHelpline}
+              onClose={() => setCrisisHelpline(null)}
+            />
+          </div>
         )}
       </AnimatePresence>
 
