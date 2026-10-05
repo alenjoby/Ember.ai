@@ -13,7 +13,7 @@ const getHeaders = (token?: string, adminToken?: string): Record<string, string>
   if (token) {
     headers['X-Owner-Token'] = token;
   }
-  const resolvedAdminToken = adminToken || localStorage.getItem('ember_admin_token') || (localStorage.getItem('ember_admin') === 'true' ? 'admin' : undefined);
+  const resolvedAdminToken = adminToken || localStorage.getItem('ember_admin_token') || undefined;
   if (resolvedAdminToken) {
     headers['X-Admin-Token'] = resolvedAdminToken;
   }

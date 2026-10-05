@@ -32,7 +32,7 @@ import {
 } from "./security.ts";
 import { generateLantern, guessEmotion } from "./lantern.ts";
 import { scheduleAiReply } from "./aiReply.ts";
-import { demoAutopilotTick, demoEnabled, demoOnline, scheduleDemoReplies, setDemoEnabled } from "./demo.ts";
+import { demoAutopilotTick, demoEnabled, demoKilled, demoOnline, scheduleDemoReplies, setDemoEnabled } from "./demo.ts";
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 
@@ -436,6 +436,9 @@ app.post("/demo", async (c) => {
   }
   const body = await readJson(c);
   if (typeof body?.enabled !== "boolean") return fail(c, 400, "bad_request", "Send { enabled: true | false }.");
+  if (body.enabled && demoKilled()) {
+    return fail(c, 409, "demo_disabled", "Demo is switched off on the server (DEMO_MODE=false).");
+  }
   await setDemoEnabled(body.enabled);
   return c.json({ enabled: body.enabled, online: body.enabled ? demoOnline() : 0 });
 });

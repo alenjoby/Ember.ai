@@ -524,9 +524,11 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
           body: JSON.stringify({ passcode: code })
         });
         const result = await response.json();
-        if (result.success) {
+        if (result.success && result.adminToken) {
           localStorage.setItem("ember_admin", "true");
-          localStorage.setItem("ember_admin_token", code.trim());
+          // The server's signed token (valid 12 h), sent as X-Admin-Token on deletes.
+          // Storing the passcode here made every admin delete fail with 403.
+          localStorage.setItem("ember_admin_token", result.adminToken);
           alert("Admin mode activated. Trash icons are now visible next to all thoughts and replies.");
           window.location.reload();
         } else {

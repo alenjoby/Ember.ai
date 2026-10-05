@@ -6,11 +6,17 @@ import { liveFilter, pickPosition, supabase, VARIANTS } from "./db.ts";
 import { generateLantern } from "./lantern.ts";
 import { scheduleAiReply } from "./aiReply.ts";
 
-// Source of truth: app_settings.demo_mode (set by the admin toggle). Until it is set,
-// the DEMO_MODE secret decides. Cached for 5 s per instance.
+// DEMO_MODE=false is a master off switch: demo is off whatever the admin button says.
+// Otherwise app_settings.demo_mode (set by the admin button) decides; until the button is
+// used, DEMO_MODE=true turns it on. Cached for 5 s per instance.
 let demoCache: { value: boolean; at: number } | null = null;
 
+export function demoKilled(): boolean {
+  return Deno.env.get("DEMO_MODE") === "false";
+}
+
 export async function demoEnabled(): Promise<boolean> {
+  if (demoKilled()) return false;
   if (demoCache && Date.now() - demoCache.at < 5000) return demoCache.value;
   const { data, error } = await supabase.from("app_settings").select("value").eq("key", "demo_mode").maybeSingle();
   if (error) console.warn("[demo] settings read failed:", error.message);
