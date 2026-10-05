@@ -96,7 +96,9 @@ export const ConnectionThreads = React.memo(function ConnectionThreads({
 
   return (
     <svg
-      className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-10"
+      width={1}
+      height={1}
+      className="absolute left-0 top-0 pointer-events-none overflow-visible z-10"
       style={{ filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.4))' }}
     >
       <defs>
