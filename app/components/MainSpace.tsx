@@ -349,24 +349,92 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
   const bgX = useTransform(panX, x => x * 0.12);
   const bgY = useTransform(panY, y => y * 0.12);
 
+  const emberCycleIndexRef = useRef(0);
+
+  const handleCycleEmbers = useCallback(() => {
+    if (thoughts.length === 0) return;
+    const targetIdx = emberCycleIndexRef.current % thoughts.length;
+    emberCycleIndexRef.current = targetIdx + 1;
+    const target = thoughts[targetIdx];
+    if (!target) return;
+
+    // Smoothly pan camera to center the target ember
+    animate(panX, -target.x, { duration: 1.1, ease: [0.16, 1, 0.3, 1] });
+    animate(panY, -target.y, { duration: 1.1, ease: [0.16, 1, 0.3, 1] });
+    setScale(1.15); // Zoom to focus on the lantern
+
+    // Highlight the target ember and its constellation threads
+    setHoveredThoughtId(target.id);
+    setTimeout(() => {
+      setHoveredThoughtId(current => current === target.id ? null : current);
+    }, 2800);
+  }, [thoughts, panX, panY]);
+
   const handleWheel = useCallback((e: WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = -e.deltaY;
-      const newScale = Math.min(Math.max(scale + delta * 0.001, 0.2), 3);
-      setScale(newScale);
-    } else {
-      panX.set(panX.get() - e.deltaX);
-      panY.set(panY.get() - e.deltaY);
+    e.preventDefault();
+    const isPinch = e.ctrlKey || e.metaKey;
+    
+    let zoomDelta = 0;
+    if (isPinch) {
+      zoomDelta = -e.deltaY * 0.008;
+    } else if (Math.abs(e.deltaY) > 0) {
+      const direction = e.deltaY > 0 ? -1 : 1;
+      const step = Math.min(Math.abs(e.deltaY) * 0.0015, 0.18);
+      zoomDelta = direction * Math.max(step, 0.08);
     }
-  }, [scale, panX, panY]);
+
+    if (zoomDelta !== 0) {
+      setScale(current => {
+        const next = Math.min(Math.max(current + zoomDelta, 0.25), 3.0);
+        return Math.round(next * 100) / 100;
+      });
+    }
+  }, []);
+
+  const initialTouchDistRef = useRef<number | null>(null);
+  const initialScaleRef = useRef<number>(1);
+
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      initialTouchDistRef.current = Math.hypot(dx, dy);
+      initialScaleRef.current = scale;
+    }
+  }, [scale]);
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (e.touches.length === 2 && initialTouchDistRef.current !== null) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const ratio = dist / initialTouchDistRef.current;
+      const nextScale = Math.min(Math.max(initialScaleRef.current * ratio, 0.25), 3.0);
+      setScale(Math.round(nextScale * 100) / 100);
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback((e: TouchEvent) => {
+    if (e.touches.length < 2) {
+      initialTouchDistRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => el.removeEventListener('wheel', handleWheel);
-  }, [handleWheel]);
+    el.addEventListener('touchstart', handleTouchStart, { passive: true });
+    el.addEventListener('touchmove', handleTouchMove, { passive: false });
+    el.addEventListener('touchend', handleTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchmove', handleTouchMove);
+      el.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [handleWheel, handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   useEffect(() => {
     const t = setTimeout(() => setShowHint(false), 5000);
@@ -400,8 +468,8 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
   };
 
   const centerPan = () => {
-    panX.set(0);
-    panY.set(0);
+    animate(panX, 0, { duration: 0.8, ease: [0.16, 1, 0.3, 1] });
+    animate(panY, 0, { duration: 0.8, ease: [0.16, 1, 0.3, 1] });
     setScale(1);
   };
 
@@ -772,31 +840,34 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
 
           <div className="w-[1px] h-8 bg-white/10 mx-1 sm:mx-2 flex-shrink-0" />
 
-          {/* Zoom controls — desktop/tablet landscape only */}
-          <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+          {/* Zoom controls */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
             <motion.button
-              onClick={() => setScale(s => Math.max(0.2, s - 0.1))}
-              className="text-[#a89992] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white rounded flex-shrink-0"
+              onClick={() => setScale(s => Math.max(0.25, Math.round((s - 0.2) * 10) / 10))}
+              className="text-[#a89992] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white rounded p-1 flex-shrink-0 cursor-pointer"
               aria-label="Zoom out"
+              title="Zoom out (20%)"
               whileHover={{ scale: 1.2, color: '#f9f3eb', filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.6))' }}
               whileTap={{ scale: 0.9 }}
             ><ZoomOut size={16} /></motion.button>
             <motion.button
               onClick={centerPan}
-              className="text-[#a89992] text-xs w-10 text-center hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white rounded flex-shrink-0 whitespace-nowrap"
+              className="text-[#a89992] text-xs w-10 text-center hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white rounded py-0.5 flex-shrink-0 whitespace-nowrap cursor-pointer"
+              title="Click to reset camera to center (100%)"
               whileHover={{ scale: 1.1, color: '#f9f3eb', textShadow: '0 0 8px rgba(255,255,255,0.6)' }}
               whileTap={{ scale: 0.95 }}
             >{Math.round(scale * 100)}%</motion.button>
             <motion.button
-              onClick={() => setScale(s => Math.min(3, s + 0.1))}
-              className="text-[#a89992] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white rounded flex-shrink-0"
+              onClick={() => setScale(s => Math.min(3.0, Math.round((s + 0.2) * 10) / 10))}
+              className="text-[#a89992] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white rounded p-1 flex-shrink-0 cursor-pointer"
               aria-label="Zoom in"
+              title="Zoom in (20%)"
               whileHover={{ scale: 1.2, color: '#f9f3eb', filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.6))' }}
               whileTap={{ scale: 0.9 }}
             ><ZoomIn size={16} /></motion.button>
           </div>
 
-          <div className="hidden md:block w-[1px] h-8 bg-white/10 mx-2 flex-shrink-0" />
+          <div className="w-[1px] h-8 bg-white/10 mx-1 sm:mx-2 flex-shrink-0" />
 
           {/* Aura Indicator */}
           <div className="flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap">
@@ -814,14 +885,27 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
 
           <div className="w-[1px] h-6 bg-white/10 mx-1 flex-shrink-0" />
 
-          {/* Embers Count Indicator */}
-          <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 whitespace-nowrap">
-            <span className="text-[#D66A3E] text-[11px] sm:text-[13px] leading-none select-none">✦</span>
+          {/* Embers Count Button - Click to travel/cycle camera to each ember */}
+          <motion.button
+            onClick={handleCycleEmbers}
+            className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 whitespace-nowrap cursor-pointer rounded-full px-2 sm:px-2.5 py-1 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D66A3E] hover:bg-[rgba(214,106,62,0.18)] hover:border-[rgba(214,106,62,0.35)] border border-transparent"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            title={thoughts.length > 0 ? "Click to fly camera to each ember in the sky" : "No embers in the sky yet"}
+            aria-label="Cycle camera to next lantern"
+          >
+            <motion.span
+              className="text-[#D66A3E] text-[11px] sm:text-[13px] leading-none select-none"
+              animate={{ rotate: [0, 15, -15, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              ✦
+            </motion.span>
             <span className="text-[#e2d9d1] text-[12px] sm:text-[13px] font-medium whitespace-nowrap">
               <span className="hidden sm:inline">{thoughts.length} {thoughts.length === 1 ? 'ember' : 'embers'}</span>
               <span className="sm:hidden">{thoughts.length}</span>
             </span>
-          </div>
+          </motion.button>
         </motion.div>
       </div>
 
