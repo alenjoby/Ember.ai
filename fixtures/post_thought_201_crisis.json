@@ -1,0 +1,20 @@
+{
+  "thought": {
+    "id": "0b8e7d6c-5a4f-4e3d-8c2b-1a0f9e8d7c6b",
+    "text": "I don't think I can do this anymore",
+    "timestamp": "2026-10-05T23:02:47.090Z",
+    "rotation": 3.1,
+    "x": -540,
+    "y": 221,
+    "width": 296,
+    "variant": "rose",
+    "responses": [],
+    "aiStatus": "waiting",
+    "lantern": null,
+    "showHelp": true,
+    "isExample": false,
+    "authorId": "user_p0w8r1"
+  },
+  "ownerToken": "Zt4yU8iO2pA6sD0fG3hJ7kL1zX5cV9bN2mQ4wE8rT6y",
+  "helpline": { "country": "IN", "name": "Tele-MANAS", "phone": "14416", "url": "https://telemanas.mohfw.gov.in" }
+}
