@@ -31,7 +31,7 @@ import {
   verifyAdminToken,
 } from "./security.ts";
 import { generateLantern, guessEmotion } from "./lantern.ts";
-import { scheduleAiReply } from "./aiReply.ts";
+import { probeTts, scheduleAiReply } from "./aiReply.ts";
 import { demoAutopilotTick, demoEnabled, demoKilled, demoOnline, scheduleDemoReplies, setDemoEnabled } from "./demo.ts";
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
@@ -159,6 +159,7 @@ app.notFound((c) => fail(c, 404, "not_found", "Nothing here."));
 app.get("/health", async (c) => {
   if (!aiConfigured()) return c.json({ ok: true, ai: "down" });
   if (c.req.query("deep") === "featherless") return c.json({ ok: true, featherless: await probeFeatherless() });
+  if (c.req.query("deep") === "tts") return c.json({ ok: true, tts: await probeTts() });
   if (c.req.query("deep") !== "1") return c.json({ ok: true, ai: "up" });
   const t0 = Date.now();
   try {

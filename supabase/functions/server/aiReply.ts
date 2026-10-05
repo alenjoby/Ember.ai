@@ -102,6 +102,26 @@ async function elevenLabsTts(text: string): Promise<Uint8Array | null> {
   return new Uint8Array(await res.arrayBuffer());
 }
 
+/** Health probe: one short ElevenLabs call (skips the daily budget), returns size or the API error. */
+export async function probeTts(): Promise<{ bytes?: number; ms?: number; error?: string }> {
+  const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
+  const voiceId = Deno.env.get("ELEVENLABS_VOICE_ID");
+  if (!apiKey || !voiceId) return { error: "ELEVENLABS_API_KEY or ELEVENLABS_VOICE_ID not set" };
+  const t0 = Date.now();
+  try {
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "xi-api-key": apiKey, Accept: "audio/mpeg" },
+      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({ text: "hello", model_id: "eleven_multilingual_v2" }),
+    });
+    if (!res.ok) return { error: `ElevenLabs ${res.status}: ${(await res.text()).slice(0, 300)}` };
+    return { bytes: (await res.arrayBuffer()).byteLength, ms: Date.now() - t0 };
+  } catch (err) {
+    return { error: (err as Error).message.slice(0, 200) };
+  }
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Background task: wait, then reply as Ember unless a human answered first. Never throws. */
