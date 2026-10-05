@@ -167,6 +167,7 @@ interface ThoughtCardProps {
   getScale: () => number;
   onHoverStart: (id: string) => void;
   onHoverEnd: () => void;
+  setIsDraggingCard: (dragging: boolean) => void;
   tutorialStep?: 'none' | 'hud' | 'star' | 'reply' | 'complete';
   dimmed?: boolean;
   isNew?: boolean;
@@ -182,6 +183,7 @@ const ThoughtCard = React.memo(function ThoughtCard({
   getScale,
   onHoverStart,
   onHoverEnd,
+  setIsDraggingCard,
   tutorialStep = 'none',
   dimmed = false,
   isNew = false,
@@ -195,126 +197,93 @@ const ThoughtCard = React.memo(function ThoughtCard({
 
   const isTutorial = thought.id === 'thought-tutorial-1';
 
-  // Smooth pointer drag state without triggering full React tree re-renders
+  // Smooth pointer drag state
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
 
-  const dragTrackingRef = useRef<{
-    pointerId: number;
-    startX: number;
-    startY: number;
-    initialX: number;
-    initialY: number;
-    moved: boolean;
-    worldDx: number;
-    worldDy: number;
-  } | null>(null);
-
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (isTutorial || e.button !== 0) return;
-    // CRITICAL: Stop propagation so parent infinite canvas does NOT pan during lantern drag
+    // Don't drag if clicking an interactive button or reply
+    if ((e.target as HTMLElement).closest('button, [data-no-drag]')) return;
+
     e.stopPropagation();
+    if (e.nativeEvent && e.nativeEvent.stopImmediatePropagation) {
+      e.nativeEvent.stopImmediatePropagation();
+    }
 
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch (_) {}
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startThoughtX = thought.x;
+    const startThoughtY = thought.y;
+    let didMove = false;
+    let currentDx = 0;
+    let currentDy = 0;
 
-    dragTrackingRef.current = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      initialX: thought.x,
-      initialY: thought.y,
-      moved: false,
-      worldDx: 0,
-      worldDy: 0,
-    };
-  };
+    setIsDragging(true);
+    setIsDraggingCard(true);
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const tracking = dragTrackingRef.current;
-    if (!tracking || tracking.pointerId !== e.pointerId) return;
-    e.stopPropagation();
-
-    const dx = e.clientX - tracking.startX;
-    const dy = e.clientY - tracking.startY;
-    const dist = Math.hypot(dx, dy);
-
-    if (dist > 3) {
-      if (!tracking.moved) {
-        tracking.moved = true;
-        setIsDragging(true);
-      }
+    const onPointerMove = (moveEvt: PointerEvent) => {
+      moveEvt.preventDefault();
+      moveEvt.stopPropagation();
       const scale = getScale() || 1;
-      const worldDx = dx / scale;
-      const worldDy = dy / scale;
-      tracking.worldDx = worldDx;
-      tracking.worldDy = worldDy;
-      setDragOffset({ x: worldDx, y: worldDy });
-    }
-  };
+      const dxScreen = moveEvt.clientX - startClientX;
+      const dyScreen = moveEvt.clientY - startClientY;
 
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    const tracking = dragTrackingRef.current;
-    if (!tracking || tracking.pointerId !== e.pointerId) return;
-    e.stopPropagation();
+      if (!didMove && Math.hypot(dxScreen, dyScreen) > 4) {
+        didMove = true;
+      }
 
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch (_) {}
+      if (didMove) {
+        currentDx = dxScreen / scale;
+        currentDy = dyScreen / scale;
+        setDragOffset({ x: currentDx, y: currentDy });
+      }
+    };
 
-    const wasMoved = tracking.moved;
-    const finalX = Math.round(tracking.initialX + tracking.worldDx);
-    const finalY = Math.round(tracking.initialY + tracking.worldDy);
+    const onPointerUp = (upEvt: PointerEvent) => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
 
-    dragTrackingRef.current = null;
-    setIsDragging(false);
-    setDragOffset({ x: 0, y: 0 });
+      setIsDragging(false);
+      setIsDraggingCard(false);
 
-    if (wasMoved) {
-      onDragEnd(thought.id, finalX, finalY);
-    } else {
-      onClick(thought);
-    }
-  };
+      if (didMove) {
+        const finalX = Math.round(startThoughtX + currentDx);
+        const finalY = Math.round(startThoughtY + currentDy);
+        setDragOffset({ x: 0, y: 0 });
+        onDragEnd(thought.id, finalX, finalY);
+      } else {
+        setDragOffset({ x: 0, y: 0 });
+        onClick(thought);
+      }
+    };
 
-  const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
-    const tracking = dragTrackingRef.current;
-    if (!tracking || tracking.pointerId !== e.pointerId) return;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch (_) {}
-    dragTrackingRef.current = null;
-    setIsDragging(false);
-    setDragOffset({ x: 0, y: 0 });
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp, { passive: false });
+    window.addEventListener('pointercancel', onPointerUp, { passive: false });
   };
 
   return (
-    <motion.div
+    <div
       onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
-      className={`absolute cursor-grab active:cursor-grabbing select-none ${isDragging ? 'z-50 scale-105 shadow-2xl' : 'z-20'}`}
+      className={`absolute select-none ${isDragging ? 'z-50 scale-105 shadow-2xl cursor-grabbing' : 'z-20 cursor-grab'}`}
       style={{
         left: thought.x + dragOffset.x,
         top: thought.y + dragOffset.y,
         width: 250,
-        rotate: thought.rotation,
+        transform: `rotate(${thought.rotation}deg)`,
         touchAction: 'none',
-        willChange: isDragging ? 'transform, left, top' : undefined,
+        opacity: targetOpacity,
+        transition: isDragging ? 'none' : 'opacity 0.5s ease',
+        willChange: isDragging ? 'left, top' : undefined,
       }}
-      initial={{ opacity: 0, scale: 0.8, y: 35 }}
-      animate={{ opacity: targetOpacity, scale: 1, y: 0 }}
-      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       onMouseEnter={() => onHoverStart(thought.id)}
       onMouseLeave={onHoverEnd}
     >
       {isTutorial && tutorialStep === 'star' && (
         <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 z-50 pointer-events-none w-[240px]">
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div 
             className="bg-[rgba(20,15,25,0.98)] backdrop-blur-xl border border-[rgba(214,106,62,0.4)] rounded-[16px] px-4 py-3 text-center shadow-[0_12px_40px_rgba(0,0,0,0.6),_0_0_20px_rgba(214,106,62,0.15)] relative animate-pulse"
           >
             <p className="text-[#f9f3eb] text-[13px] font-medium leading-relaxed" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
@@ -322,7 +291,7 @@ const ThoughtCard = React.memo(function ThoughtCard({
             </p>
             {/* Subtle arrow pointing down */}
             <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-[rgba(20,15,25,0.98)] border-r border-b border-[rgba(214,106,62,0.4)]" />
-          </motion.div>
+          </div>
         </div>
       )}
       <div 
@@ -345,7 +314,7 @@ const ThoughtCard = React.memo(function ThoughtCard({
           width={250}
         />
       </div>
-    </motion.div>
+    </div>
   );
 });
 
@@ -469,6 +438,7 @@ const EMOTION_CHIPS = [
 export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThoughtClick, onReplyClick, onHistoryClick, onThoughtMove, aiGlowThoughtId, voiceCount, panToTarget, onPanComplete, tutorialStep = 'none', setTutorialStep, onTriggerPanToStar }: MainSpaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [isDraggingCard, setIsDraggingCard] = useState(false);
   const panX = useMotionValue(0);
   const panY = useMotionValue(0);
   const [showHint, setShowHint] = useState(true);
@@ -744,7 +714,7 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
 
       {/* Infinite canvas */}
       <motion.div
-        drag={tutorialStep !== 'hud'}
+        drag={tutorialStep !== 'hud' && !isDraggingCard}
         dragElastic={0} dragMomentum={false}
         className={[
           "absolute inset-0 origin-center flex items-center justify-center transition-[filter,opacity] duration-500",
@@ -834,6 +804,7 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
                 onClick={onThoughtClick}
                 onReplyClick={onReplyClick}
                 onDragEnd={onThoughtMove}
+                setIsDraggingCard={setIsDraggingCard}
                 isGlowing={thought.aiStatus === 'replying' || aiGlowThoughtId === thought.id || (thought.id === 'thought-tutorial-1' && tutorialStep === 'star')}
                 isHovered={hoveredThoughtId === thought.id}
                 dimmed={isThoughtDimmed}
