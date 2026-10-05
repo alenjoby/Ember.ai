@@ -123,7 +123,7 @@ export function detectNegativity(text: string): SafeSpaceResult {
         allowed: true, // Never block a crisis cry for help
         severity: 'clean',
         score: 0,
-        reason: "You matter. You are not alone. If you need immediate help, please call 988 or visit findahelpline.com.",
+        reason: "You matter. You are not alone. If you need immediate support, confidential help is available 24/7 at findahelpline.com or via your local emergency services.",
         matchedPatterns: ['crisis'],
         isCrisis: true
       };

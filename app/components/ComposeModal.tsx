@@ -101,7 +101,7 @@ export function ComposeModal({ onClose, onSubmit }: ComposeModalProps) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-6"
+      className="fixed inset-0 z-40 flex items-center justify-center p-0 sm:p-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -116,7 +116,7 @@ export function ComposeModal({ onClose, onSubmit }: ComposeModalProps) {
 
       {/* Modal */}
       <motion.div
-        className="relative w-full max-w-[900px] bg-[rgba(255,255,255,0.03)] backdrop-blur-3xl border border-[rgba(255,255,255,0.15)] rounded-[24px] sm:rounded-[36px] shadow-[0px_32px_64px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.1)] overflow-hidden"
+        className="relative w-full h-[100dvh] sm:h-auto max-w-[900px] bg-[rgba(255,255,255,0.03)] backdrop-blur-3xl border-0 sm:border border-[rgba(255,255,255,0.15)] rounded-none sm:rounded-[36px] shadow-[0px_32px_64px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.1)] overflow-y-auto sm:overflow-hidden flex flex-col justify-between"
         initial={{ opacity: 0, y: 20, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -12, scale: 0.98 }}

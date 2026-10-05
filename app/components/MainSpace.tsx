@@ -4,6 +4,7 @@ import {
   ZoomIn, ZoomOut, Focus, Mic, Feather, Brush, Sparkles, Cloud, Flower2, Waves, Sun, Droplet, Heart, Info, Volume2, VolumeX
 } from 'lucide-react';
 import type { Thought, ThoughtResponse } from '../App';
+import { Lantern } from './Lantern';
 import { projectId, publicAnonKey } from '../../supabase/info';
 
 const ambientAudioUrl = "https://media.vocaroo.com/mp3/12t9rzFa7Lt4";
@@ -444,6 +445,17 @@ const ThoughtCard = React.memo(function ThoughtCard({
                 </svg>
               </div>
               
+              {thought.isExample && (
+                <div className="mb-1.5 flex justify-center">
+                  <span
+                    className="px-2 py-0.5 rounded-full text-[10px] tracking-wide uppercase bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] text-[#a89e96]"
+                    style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 600 }}
+                  >
+                    example
+                  </span>
+                </div>
+              )}
+
               {thought.emotion && EMOTION_ICONS[thought.emotion] && (() => {
                 const Icon = EMOTION_ICONS[thought.emotion];
                 return (
@@ -457,7 +469,23 @@ const ThoughtCard = React.memo(function ThoughtCard({
                 {thought.text}
               </p>
 
-            {isGlowing && (
+            {thought.aiStatus === 'replying' && (
+              <motion.div
+                className="flex items-center justify-center gap-1.5 mt-3"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <span
+                  className="text-[#D66A3E] text-[11px] tracking-wide italic"
+                  style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 500, textShadow: '0 0 8px rgba(214,106,62,0.4)' }}
+                >
+                  ✦ Ember is writing…
+                </span>
+              </motion.div>
+            )}
+
+            {isGlowing && thought.aiStatus !== 'replying' && (
               <motion.div className="flex justify-center mt-3" initial={{ opacity: 0 }} animate={{ opacity: [0.4, 0.9, 0.4] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 1 }}>
                 <span className="text-[#D66A3E]" style={{ fontFamily: "'Alegreya', serif", fontWeight: 700, fontSize: '10px', letterSpacing: '0.15em', textShadow: '0 0 10px rgba(214,106,62,0.5)' }}>
                   ✦ Ember
@@ -557,8 +585,20 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
     }
   }, [ambientPlaying]);
 
-  const toggleAmbient = () => {
-    setAmbientPlaying((prev) => !prev);
+  const toggleAmbient = async () => {
+    const nextState = !ambientPlaying;
+    setAmbientPlaying(nextState);
+    localStorage.setItem('ember_sound', nextState ? 'on' : 'off');
+    if (nextState) {
+      try {
+        const Tone = await import('tone');
+        if (Tone.context.state !== 'running') {
+          await Tone.start();
+        }
+      } catch (err) {
+        console.warn('Tone.start failed on user toggle:', err);
+      }
+    }
   };
   const handleLogoDoubleClick = async () => {
     if (localStorage.getItem("ember_admin") === "true") {
@@ -818,11 +858,11 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
                 style={{ width: 400, height: 200, left: -200, top: -100 }}
               >
                 <Sparkles size={32} className="text-[#D66A3E] opacity-50 mb-4" />
-                <p className="text-[#f9f3eb] text-[20px] text-center" style={{ fontFamily: "'Alegreya', serif", fontWeight: 700 }}>
-                  The sky is quiet tonight.
+                <p className="text-[#f9f3eb] text-[22px] text-center" style={{ fontFamily: "'Alegreya', serif", fontWeight: 700 }}>
+                  Be the first light tonight.
                 </p>
-                <p className="text-[#8a7f79] text-[16px] mt-2 text-center" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
-                  Be the first to release an ember.
+                <p className="text-[#8a7f79] text-[15px] mt-1.5 text-center" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
+                  The sky is quiet. Share a thought or whisper into the dark.
                 </p>
               </motion.div>
             )}
@@ -836,7 +876,7 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
               onClick={() => onThoughtClick(thought)}
               onReplyClick={(reply) => onReplyClick(thought, reply)}
               onDragEnd={(x, y) => onThoughtMove(thought.id, x, y)}
-              isGlowing={aiGlowThoughtId === thought.id || (thought.id === 'thought-tutorial-1' && tutorialStep === 'star')}
+              isGlowing={thought.aiStatus === 'replying' || aiGlowThoughtId === thought.id || (thought.id === 'thought-tutorial-1' && tutorialStep === 'star')}
               isHovered={hoveredThoughtId === thought.id}
               onHoverStart={() => setHoveredThoughtId(thought.id)}
               onHoverEnd={() => setHoveredThoughtId(null)}

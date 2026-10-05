@@ -9,9 +9,12 @@ import {
 import type { Thought, ThoughtResponse } from '../App';
 import { projectId, publicAnonKey } from '../../supabase/info';
 import { ScreenGlow } from './ScreenGlow';
-import { StickerIcon } from './StickerIcon';
+import { StickerIcon as BaseStickerIcon } from './StickerIcon';
 import { detectNegativity, getVoiceReminder } from '../safeSpace';
 import { SafeSpaceGuard, SafeSpaceInline } from './SafeSpaceGuard';
+import { AiLabel } from './AiLabel';
+import { CrisisCard } from './CrisisCard';
+import { useLanternSound } from './useLanternSound';
 
 
 interface Props {
@@ -79,7 +82,7 @@ const EMOJI_TO_ICON: Record<string, string> = {
 
 function StickerIcon({ nameOrEmoji, size = 24, className }: { nameOrEmoji: string; size?: number; className?: string }) {
   const iconName = EMOJI_TO_ICON[nameOrEmoji] || nameOrEmoji;
-  return <StickerIcon name={iconName} size={size} className={className} />;
+  return <BaseStickerIcon name={iconName} size={size} className={className} />;
 }
 
 function relativeTime(date: Date): string {
@@ -239,40 +242,13 @@ function VoiceTab({ onSend }: { onSend: (text: string, url: string) => void }) {
     
     setLoading(true);
     try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/server/moderate-audio`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': publicAnonKey,
-          'Authorization': `Bearer ${publicAnonKey}`
-        },
-        body: JSON.stringify({ audioData: recordedAudioUrl })
-      });
-      
-      if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-      const data = await response.json();
-      
-      if (data && data.allowed === false) {
-        setGuardMessage(data.reason || "This voice message cannot be sent because it violates our safety guidelines.");
-        setGuardSeverity(data.isCrisis ? 'mild' : 'severe');
-        setShowGuard(true);
-        setLoading(false);
-        return;
-      }
-      
-      const finalTranscript = data?.transcript || `Voice message (${formatTime(duration)})`;
-      
+      const finalTranscript = `Voice message (${formatTime(duration)})`;
       onSend(finalTranscript, recordedAudioUrl);
       setRecordState('idle');
       setDuration(0);
       setRecordedAudioUrl('');
     } catch (err) {
-      console.error('Audio moderation error:', err);
-      // Fallback: send anyway
-      onSend(`Voice message (${formatTime(duration)})`, recordedAudioUrl);
-      setRecordState('idle');
-      setDuration(0);
-      setRecordedAudioUrl('');
+      console.error('Audio send error:', err);
     } finally {
       setLoading(false);
     }
@@ -560,9 +536,7 @@ function VoicePlayer({ response, isAI, timeStr, onDeleteReply }: { response: Tho
         <div className="flex items-center justify-between text-[11.5px] text-[#8a7f79] relative">
           <span className="flex items-center gap-1 font-bold" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
             {isAI ? (
-              <>
-                <span className="text-[#D66A3E] animate-pulse">✦</span> Ember
-              </>
+              <AiLabel />
             ) : (
               'someone'
             )}
@@ -623,10 +597,10 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
         </div>
         <div className="flex items-center justify-between w-full relative">
           <span
-            className="text-[#8a7f79] text-[12px]"
+            className="text-[#8a7f79] text-[12px] flex items-center gap-1.5"
             style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
           >
-            {isAI ? '✦ Ember' : 'someone'} sent a sticker · {timeStr}
+            {isAI ? <AiLabel /> : 'someone'} sent a sticker · {timeStr}
           </span>
           {localStorage.getItem('ember_admin') === 'true' && onDeleteReply && (
             <button
@@ -670,7 +644,7 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
       <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] rounded-[18px] overflow-hidden">
         <img
           src={response.drawingData}
-          alt="Drawing response"
+          alt="A drawing reply"
           className="w-full max-h-[200px] object-contain invert-[0.85] hue-rotate-180" // Quick invert hack to make drawings look better on dark
         />
         <div className="px-4 py-2 border-t border-[rgba(255,255,255,0.05)] flex items-center justify-between">
@@ -719,9 +693,7 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
       <div className="flex items-center justify-between text-[11.5px] text-[#8a7f79] mt-3.5 relative">
         <span className="flex items-center gap-1 font-bold" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
           {isAI ? (
-            <>
-              <span className="text-[#D66A3E] animate-pulse">✦</span> Ember
-            </>
+            <AiLabel />
           ) : (
             'someone'
           )}
@@ -774,6 +746,10 @@ export function ThoughtDetailModal({ thought, onClose, onAddResponse, onOpenDraw
   const responsesEndRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [showHugPulse, setShowHugPulse] = useState(false);
+
+  // Hook up Tone.js soundscape for opened thought
+  const soundEnabled = localStorage.getItem('ember_sound') === 'on';
+  useLanternSound(thought.lantern || null, soundEnabled);
 
   useEffect(() => {
     responsesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -864,6 +840,13 @@ export function ThoughtDetailModal({ thought, onClose, onAddResponse, onOpenDraw
 
         {/* Main content wrapper (blurred during tutorial reply step) */}
         <div className={tutorialStep === 'reply' ? 'flex-1 flex flex-col min-h-0 blur-[3px] opacity-40 pointer-events-none transition-all duration-300' : 'flex-1 flex flex-col min-h-0 transition-all duration-300'}>
+          {/* Crisis Help Card if flagged */}
+          {thought.showHelp && (
+            <div className="px-4 pt-4 sm:px-6">
+              <CrisisCard inline />
+            </div>
+          )}
+
           {/* Thought display — Deep Card */}
           <div className="px-4 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-5">
             <div
@@ -927,7 +910,12 @@ export function ThoughtDetailModal({ thought, onClose, onAddResponse, onOpenDraw
           </div>
 
           {/* Responses */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 sm:px-6 min-h-0 max-w-full">
+          <div
+            className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 sm:px-6 min-h-0 max-w-full"
+            aria-live="polite"
+            role="log"
+            aria-label="Responses"
+          >
             {thought.responses.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center opacity-80">
                 <Leaf size={34} className="mb-3 text-[#10b981] drop-shadow-[0_0_15px_rgba(16,185,129,0.4)]" />

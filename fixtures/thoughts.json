@@ -1,0 +1,232 @@
+[
+  {
+    "id": "thought_1",
+    "text": "I moved to a new city three weeks ago. My apartment is completely quiet and I haven't heard my own voice out loud today.",
+    "timestamp": "2026-10-05T08:30:00.000Z",
+    "rotation": -1.5,
+    "x": 480,
+    "y": 320,
+    "width": 310,
+    "variant": "teal",
+    "emotion": "lonely",
+    "authorId": "user_demo_1",
+    "responses": [
+      {
+        "id": "reply_1_1",
+        "type": "note",
+        "content": "The first month in a new place is the quietest mountain to climb. You are making roots even when it feels like drifting.",
+        "timestamp": "2026-10-05T08:45:00.000Z",
+        "isAI": false,
+        "authorId": "user_demo_2"
+      },
+      {
+        "id": "reply_1_2",
+        "type": "sticker",
+        "content": "sticker_hug",
+        "timestamp": "2026-10-05T09:02:00.000Z",
+        "isAI": false,
+        "authorId": "user_demo_3"
+      },
+      {
+        "id": "reply_1_3",
+        "type": "note",
+        "content": "I hear you. The silence can feel heavy, but this quiet space holds you until you find your rhythm.",
+        "timestamp": "2026-10-05T09:15:00.000Z",
+        "isAI": true
+      }
+    ],
+    "aiStatus": "done",
+    "lantern": {
+      "palette": ["#67e8f9", "#0e7490", "#083344"],
+      "glow": 0.85,
+      "flicker": 0.35,
+      "shape": "tall",
+      "sound": {
+        "mood": "night",
+        "instrument": "pad",
+        "key": "D minor",
+        "tempo": 52
+      },
+      "caption": "quiet rain at 3am"
+    },
+    "showHelp": false,
+    "isExample": true
+  },
+  {
+    "id": "thought_2",
+    "text": "My grandmother taught me how to fold paper cranes when I was little. Today I folded one for her from an old receipt.",
+    "timestamp": "2026-10-05T09:10:00.000Z",
+    "rotation": 2.1,
+    "x": 920,
+    "y": 240,
+    "width": 290,
+    "variant": "warm",
+    "emotion": "grateful",
+    "authorId": "user_demo_4",
+    "responses": [
+      {
+        "id": "reply_2_1",
+        "type": "note",
+        "content": "Those little rituals stay forever. She folds them with you in spirit.",
+        "timestamp": "2026-10-05T09:25:00.000Z",
+        "isAI": false,
+        "authorId": "user_demo_5"
+      },
+      {
+        "id": "reply_2_2",
+        "type": "sticker",
+        "content": "sticker_heart",
+        "timestamp": "2026-10-05T09:30:00.000Z",
+        "isAI": false,
+        "authorId": "user_demo_6"
+      }
+    ],
+    "aiStatus": "done",
+    "lantern": {
+      "palette": ["#fde047", "#f97316", "#7c2d12"],
+      "glow": 0.95,
+      "flicker": 0.45,
+      "shape": "round",
+      "sound": {
+        "mood": "chimes",
+        "instrument": "bells",
+        "key": "G major",
+        "tempo": 64
+      },
+      "caption": "paper cranes and golden tea"
+    },
+    "showHelp": false,
+    "isExample": true
+  },
+  {
+    "id": "thought_3",
+    "text": "My chest feels tight and my thoughts are running faster than I can breathe. Trying to ground myself.",
+    "timestamp": "2026-10-05T10:00:00.000Z",
+    "rotation": -0.8,
+    "x": 310,
+    "y": 660,
+    "width": 300,
+    "variant": "light",
+    "emotion": "anxious",
+    "authorId": "user_demo_7",
+    "responses": [
+      {
+        "id": "reply_3_1",
+        "type": "note",
+        "content": "Inhale for 4, hold for 4, exhale for 6. You are safe right where you are right now.",
+        "timestamp": "2026-10-05T10:05:00.000Z",
+        "isAI": false,
+        "authorId": "user_demo_8"
+      }
+    ],
+    "aiStatus": "replying",
+    "lantern": {
+      "palette": ["#a78bfa", "#6366f1", "#1e1b4b"],
+      "glow": 0.75,
+      "flicker": 0.65,
+      "shape": "paper",
+      "sound": {
+        "mood": "wind",
+        "instrument": "piano",
+        "key": "A minor",
+        "tempo": 48
+      },
+      "caption": "slow tides in the chest"
+    },
+    "showHelp": false,
+    "isExample": true
+  },
+  {
+    "id": "thought_4",
+    "text": "Everything feels so overwhelmingly heavy tonight. I don't know how to keep carrying all of this alone.",
+    "timestamp": "2026-10-05T10:20:00.000Z",
+    "rotation": 1.2,
+    "x": 750,
+    "y": 620,
+    "width": 320,
+    "variant": "rose",
+    "emotion": "grieving",
+    "authorId": "user_demo_9",
+    "responses": [
+      {
+        "id": "reply_4_1",
+        "type": "note",
+        "content": "Please know your existence is deeply precious. Please reach out to someone who can listen tonight.",
+        "timestamp": "2026-10-05T10:25:00.000Z",
+        "isAI": false,
+        "authorId": "user_demo_10"
+      }
+    ],
+    "aiStatus": "done",
+    "lantern": {
+      "palette": ["#fda4af", "#e11d48", "#4c0519"],
+      "glow": 0.7,
+      "flicker": 0.25,
+      "shape": "tall",
+      "sound": {
+        "mood": "ocean",
+        "instrument": "cello",
+        "key": "C minor",
+        "tempo": 42
+      },
+      "caption": "carrying tender waters"
+    },
+    "showHelp": true,
+    "isExample": true
+  },
+  {
+    "id": "thought_5",
+    "text": "I finally stood up for myself in a meeting today after months of staying silent. My hands shook, but I did it.",
+    "timestamp": "2026-10-05T11:00:00.000Z",
+    "rotation": -2.0,
+    "x": 1200,
+    "y": 480,
+    "width": 300,
+    "variant": "warm",
+    "emotion": "hopeful",
+    "authorId": "user_demo_11",
+    "responses": [
+      {
+        "id": "reply_5_1",
+        "type": "sticker",
+        "content": "sticker_sparkle",
+        "timestamp": "2026-10-05T11:05:00.000Z",
+        "isAI": false,
+        "authorId": "user_demo_12"
+      }
+    ],
+    "aiStatus": "waiting",
+    "lantern": {
+      "palette": ["#fde047", "#fbbf24", "#78350f"],
+      "glow": 0.9,
+      "flicker": 0.5,
+      "shape": "star",
+      "sound": {
+        "mood": "birds",
+        "instrument": "flute",
+        "key": "E major",
+        "tempo": 72
+      },
+      "caption": "quiet courage finding voice"
+    },
+    "showHelp": false,
+    "isExample": true
+  },
+  {
+    "id": "thought_6",
+    "text": "Just lit a lavender candle and watched the sunset turn the sky into peach and violet. Pure gentle peace.",
+    "timestamp": "2026-10-05T11:30:00.000Z",
+    "rotation": 0.5,
+    "x": 1100,
+    "y": 800,
+    "width": 280,
+    "variant": "teal",
+    "emotion": "joyful",
+    "authorId": "user_demo_13",
+    "responses": [],
+    "aiStatus": "waiting",
+    "lantern": null,
+    "showHelp": false,
+    "isExample": true
+  }
+]
