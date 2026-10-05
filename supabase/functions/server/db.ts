@@ -149,3 +149,27 @@ export async function removeMedia(urls: (string | null | undefined)[]): Promise<
   const { error } = await supabase.storage.from(MEDIA_BUCKET).remove(paths);
   if (error) console.warn("[media] remove failed:", error.message);
 }
+
+/** 12 random candidates in ±900 px; keep the one farthest from existing thoughts. */
+export async function pickPosition(): Promise<{ x: number; y: number }> {
+  const { data } = await supabase
+    .from("thoughts")
+    .select("x, y")
+    .eq("hidden", false)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  const existing = data ?? [];
+  let best = { x: 0, y: 0 };
+  let bestDist = -1;
+  for (let i = 0; i < 12; i++) {
+    const cand = { x: Math.round(Math.random() * 1800 - 900), y: Math.round(Math.random() * 1800 - 900) };
+    const dist = existing.length
+      ? Math.min(...existing.map((p) => Math.hypot(p.x - cand.x, p.y - cand.y)))
+      : Infinity;
+    if (dist > bestDist) {
+      best = cand;
+      bestDist = dist;
+    }
+  }
+  return best;
+}

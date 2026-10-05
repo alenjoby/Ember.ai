@@ -6,6 +6,7 @@ import { bodyLimit } from "npm:hono@4/body-limit";
 import { decodeBase64 } from "jsr:@std/encoding@1/base64";
 import {
   EMOTIONS,
+  pickPosition,
   removeMedia,
   type ReplyRow,
   supabase,
@@ -29,7 +30,7 @@ import {
 } from "./security.ts";
 import { generateLantern } from "./lantern.ts";
 import { scheduleAiReply } from "./aiReply.ts";
-import { demoEnabled, demoOnline, scheduleDemoReplies } from "./demo.ts";
+import { demoAutopilotTick, demoEnabled, demoOnline, scheduleDemoReplies } from "./demo.ts";
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 
@@ -121,30 +122,6 @@ async function canDelete(c: Context, itemId: string, kind: "thought" | "reply"):
   return !!data && safeEqual(await sha256Hex(token), data.token_hash);
 }
 
-/** 12 random candidates in ±900 px; keep the one farthest from existing thoughts. */
-async function pickPosition(): Promise<{ x: number; y: number }> {
-  const { data } = await supabase
-    .from("thoughts")
-    .select("x, y")
-    .eq("hidden", false)
-    .order("created_at", { ascending: false })
-    .limit(200);
-  const existing = data ?? [];
-  let best = { x: 0, y: 0 };
-  let bestDist = -1;
-  for (let i = 0; i < 12; i++) {
-    const cand = { x: Math.round(Math.random() * 1800 - 900), y: Math.round(Math.random() * 1800 - 900) };
-    const dist = existing.length
-      ? Math.min(...existing.map((p) => Math.hypot(p.x - cand.x, p.y - cand.y)))
-      : Infinity;
-    if (dist > bestDist) {
-      best = cand;
-      bestDist = dist;
-    }
-  }
-  return best;
-}
-
 // ─── App ────────────────────────────────────────────────────────────
 
 const app = new Hono().basePath("/server");
@@ -180,6 +157,7 @@ app.get("/health", (c) => c.json({ ok: true, ai: aiConfigured() ? "up" : "down" 
 
 // List thoughts (newest 200 visible, replies oldest first)
 app.get("/thoughts", async (c) => {
+  if (demoEnabled()) background("demoAutopilot", demoAutopilotTick());
   const { data, error } = await supabase
     .from("thoughts")
     .select("*, replies(*)")
