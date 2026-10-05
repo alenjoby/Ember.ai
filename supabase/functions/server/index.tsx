@@ -204,7 +204,9 @@ app.post("/thoughts", async (c) => {
 
   // Find a spot on the canvas while moderation runs (placement uses the instant rules check only).
   const placeAs = (emotion as string | null) ?? (detectNegativity(text).isCrisis ? null : guessEmotion(text));
-  const [verdict, pos] = await Promise.all([moderateText(text), pickPosition(placeAs)]);
+  // Demo mode spends no AI credits: rules-only moderation, preset lantern, canned Ember reply.
+  const useLlm = !(await demoEnabled());
+  const [verdict, pos] = await Promise.all([moderateText(text, useLlm), pickPosition(placeAs)]);
   if (!verdict.allowed) return blocked(c, verdict.reason, verdict.severity as "mild");
 
   const { data: row, error } = await supabase
@@ -232,10 +234,10 @@ app.post("/thoughts", async (c) => {
     throw err;
   }
 
-  background("lantern", generateLantern(row.id, text, emotion as string | null, verdict.isCrisis));
-  background("aiReply", scheduleAiReply(row.id));
+  background("lantern", generateLantern(row.id, text, emotion as string | null, verdict.isCrisis, useLlm));
+  background("aiReply", scheduleAiReply(row.id, useLlm));
   // Demo video only: simulated peers. Never on crisis thoughts.
-  if (!verdict.isCrisis && (await demoEnabled())) background("demo", scheduleDemoReplies(row.id, emotion as string | null));
+  if (!verdict.isCrisis && !useLlm) background("demo", scheduleDemoReplies(row.id, emotion as string | null));
 
   return c.json(
     {
@@ -298,7 +300,7 @@ app.post(
         if (content.length < 1 || content.length > MAX_TEXT) {
           return fail(c, 400, "invalid_text", `Your reply needs 1 to ${MAX_TEXT} characters.`);
         }
-        const verdict = await moderateText(content);
+        const verdict = await moderateText(content, !(await demoEnabled()));
         if (!verdict.allowed) return blocked(c, verdict.reason, verdict.severity as "mild");
         Object.assign(insert, { type: "note", content });
         break;
@@ -412,7 +414,7 @@ app.post("/moderate", async (c) => {
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!text) return c.json({ allowed: true, severity: "clean", reason: "", isCrisis: false });
   if (text.length > MAX_TEXT) return fail(c, 400, "invalid_text", `Keep it under ${MAX_TEXT} characters.`);
-  return c.json(await moderateText(text));
+  return c.json(await moderateText(text, !(await demoEnabled())));
 });
 
 // Helpline for the viewer's country

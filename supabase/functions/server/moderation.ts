@@ -73,7 +73,9 @@ ${fenced(text)}`,
 const CACHE_TTL_MS = 120_000;
 const verdictCache = new Map<string, { result: ModerationResult; at: number }>();
 
-export async function moderateText(text: string): Promise<ModerationResult> {
+/** useLlm=false (demo mode): rules only, no AI credits spent. */
+export async function moderateText(text: string, useLlm = true): Promise<ModerationResult> {
+  if (!useLlm) return combine(detectNegativity(text), null);
   const hit = verdictCache.get(text);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.result;
 
