@@ -19,6 +19,7 @@ import { useLanternSound } from './useLanternSound';
 
 interface Props {
   thought: Thought;
+  allThoughts?: Thought[];
   onClose: () => void;  
   onAddResponse: (response: Omit<ThoughtResponse, 'id' | 'timestamp'>) => Promise<void> | void;
   onOpenDraw: () => void;
@@ -748,12 +749,17 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
   );
 }
 
-export function ThoughtDetailModal({ thought, onClose, onAddResponse, onOpenDraw, onDeleteThought, onDeleteReply, tutorialStep = 'none' }: Props) {
+export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddResponse, onOpenDraw, onDeleteThought, onDeleteReply, tutorialStep = 'none' }: Props) {
   const [mode, setMode] = useState<ResponseMode>(tutorialStep === 'reply' ? 'sticker' : 'note');
   const [sentSticker, setSentSticker] = useState<string | null>(null);
   const responsesEndRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [showHugPulse, setShowHugPulse] = useState(false);
+
+  const sameFeelingCount = useMemo(() => {
+    if (!allThoughts || !thought.emotion) return 0;
+    return allThoughts.filter(t => t.id !== thought.id && t.emotion === thought.emotion).length;
+  }, [allThoughts, thought.id, thought.emotion]);
 
   // Hook up Tone.js soundscape for opened thought
   const soundEnabled = localStorage.getItem('ember_sound') === 'on';
@@ -901,6 +907,18 @@ export function ThoughtDetailModal({ thought, onClose, onAddResponse, onOpenDraw
                       "{thought.lantern.caption}"
                     </span>
                   )}
+                </div>
+              )}
+
+              {/* Network Connection context from ember-network */}
+              {thought.emotion && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.07)] mb-3 relative z-10 max-w-fit">
+                  <span className="text-[#FFB347] text-xs">✦</span>
+                  <span className="text-[12px] text-[#ffd9c2] tracking-wide" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
+                    {sameFeelingCount > 0
+                      ? `Connected to ${sameFeelingCount} other ${sameFeelingCount === 1 ? 'person' : 'people'} who felt ${thought.emotion} tonight.`
+                      : `The first ${thought.emotion} light tonight.`}
+                  </span>
                 </div>
               )}
 

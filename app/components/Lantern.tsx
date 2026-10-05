@@ -15,6 +15,8 @@ interface LanternProps {
   responses: ThoughtResponse[];
   isGlowing?: boolean;
   isHovered?: boolean;
+  dimmed?: boolean;
+  isNew?: boolean;
   onReplyClick?: (reply: ThoughtResponse) => void;
   width?: number;
 }
@@ -289,6 +291,8 @@ export function Lantern({
   responses,
   isGlowing,
   isHovered,
+  dimmed,
+  isNew,
   onReplyClick,
   width = 250,
 }: LanternProps) {
@@ -336,8 +340,8 @@ export function Lantern({
 
   return (
     <div
-      style={{ width }}
-      className="relative flex flex-col items-center select-none group focus:outline-none pointer-events-none"
+      style={{ width, opacity: dimmed ? 0.18 : 1 }}
+      className="relative flex flex-col items-center select-none group focus:outline-none pointer-events-none transition-all duration-500"
     >
       {/* Atmospheric Halo Glow behind the Lantern */}
       <motion.div
@@ -445,8 +449,15 @@ export function Lantern({
 
       {/* Lantern Card Content & Message */}
       <div className="relative z-20 mt-2 flex flex-col items-center text-center max-w-[240px] pointer-events-auto">
-        {/* Badges: Example & Emotion */}
         <div className="flex items-center gap-1.5 mb-1">
+          {isNew && (
+            <span
+              className="px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-bold bg-[rgba(214,106,62,0.35)] text-[#ffd9c2] border border-[rgba(214,106,62,0.5)] backdrop-blur-md animate-pulse shadow-[0_0_8px_rgba(214,106,62,0.4)]"
+              style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
+            >
+              your lantern
+            </span>
+          )}
           {isExample && (
             <span
               className="px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-semibold bg-white/10 text-[#d8cfc7] border border-white/15 backdrop-blur-md"

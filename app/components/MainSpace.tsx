@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import type { Thought, ThoughtResponse } from '../App';
 import { Lantern } from './Lantern';
+import { ConnectionThreads } from './ConnectionThreads';
 import { projectId, publicAnonKey } from '../../supabase/info';
 
 
@@ -20,6 +21,7 @@ import { STICKER_DATA } from './stickersData';
 
 interface MainSpaceProps {
   thoughts: Thought[];
+  selectedThoughtId?: string | null;
   onInputClick: () => void;
   onThoughtClick: (thought: Thought) => void;
   onReplyClick: (thought: Thought, reply: ThoughtResponse) => void;
@@ -156,11 +158,14 @@ const floatAnimationStyles = `
 `;
 
 const ThoughtCard = React.memo(function ThoughtCard({
-  thought, onClick, onReplyClick, onDragEnd, isGlowing, isHovered, scale, onHoverStart, onHoverEnd, tutorialStep = 'none'
+  thought, onClick, onReplyClick, onDragEnd, isGlowing, isHovered, scale, onHoverStart, onHoverEnd, tutorialStep = 'none',
+  dimmed = false, isNew = false
 }: {
   thought: Thought; onClick: () => void; onReplyClick: (reply: ThoughtResponse) => void; onDragEnd: (x: number, y: number) => void;
   isGlowing: boolean; isHovered: boolean; scale: number; onHoverStart: () => void; onHoverEnd: () => void;
   tutorialStep?: 'none' | 'hud' | 'star' | 'reply' | 'complete';
+  dimmed?: boolean;
+  isNew?: boolean;
 }) {
   const ageInHours = (new Date().getTime() - new Date(thought.timestamp).getTime()) / (1000 * 60 * 60);
   const targetOpacity = ageInHours > 20 ? Math.max(0.2, 1 - (ageInHours - 20) / 4) : 1;
@@ -227,6 +232,8 @@ const ThoughtCard = React.memo(function ThoughtCard({
           responses={thought.responses || []}
           isGlowing={isGlowing}
           isHovered={isHovered}
+          dimmed={dimmed}
+          isNew={isNew}
           onReplyClick={onReplyClick}
           width={250}
         />
@@ -255,7 +262,16 @@ const STARS = Array.from({ length: 600 }, (_, i) => {
 });
 
 
-export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick, onHistoryClick, onThoughtMove, aiGlowThoughtId, voiceCount, panToTarget, onPanComplete, tutorialStep = 'none', setTutorialStep, onTriggerPanToStar }: MainSpaceProps) {
+const EMOTION_CHIPS = [
+  { key: 'lonely', label: 'Lonely', color: '#9DB4FF' },
+  { key: 'anxious', label: 'Anxious', color: '#8FE3D8' },
+  { key: 'grieving', label: 'Grieving', color: '#C9A7FF' },
+  { key: 'hopeful', label: 'Hopeful', color: '#FFE7A3' },
+  { key: 'joyful', label: 'Joyful', color: '#FFE08A' },
+  { key: 'grateful', label: 'Grateful', color: '#D9F2B4' },
+] as const;
+
+export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThoughtClick, onReplyClick, onHistoryClick, onThoughtMove, aiGlowThoughtId, voiceCount, panToTarget, onPanComplete, tutorialStep = 'none', setTutorialStep, onTriggerPanToStar }: MainSpaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const panX = useMotionValue(0);
@@ -263,7 +279,7 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
   const [showHint, setShowHint] = useState(true);
   const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
   const [hoveredThoughtId, setHoveredThoughtId] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'warm' | 'light'>('all');
+  const [focusEmotion, setFocusEmotion] = useState<string | null>(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showEmptyState, setShowEmptyState] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('ember_sound') === 'on');
@@ -328,16 +344,7 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
     return () => clearTimeout(timer);
   }, []);
 
-  const filteredThoughts = useMemo(() => {
-    if (activeFilter === 'all') return thoughts;
-    if (activeFilter === 'warm') {
-      return thoughts.filter(t => t.variant === 'warm' || t.emotion === 'joyful' || t.emotion === 'hopeful' || t.emotion === 'grateful');
-    }
-    if (activeFilter === 'light') {
-      return thoughts.filter(t => t.variant === 'light' || t.variant === 'teal' || t.emotion === 'lonely' || t.emotion === 'anxious' || t.emotion === 'grieving');
-    }
-    return thoughts;
-  }, [thoughts, activeFilter]);
+  const filteredThoughts = thoughts;
 
   const bgX = useTransform(panX, x => x * 0.12);
   const bgY = useTransform(panY, y => y * 0.12);
@@ -536,8 +543,15 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
 
 
 
-        {/* Thoughts */}
+        {/* Thoughts & Constellation Connection Threads */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+          <ConnectionThreads
+            thoughts={thoughts}
+            hoveredThoughtId={hoveredThoughtId}
+            selectedThoughtId={selectedThoughtId ?? null}
+            focusEmotion={focusEmotion}
+          />
+
           <AnimatePresence>
             {filteredThoughts.length === 0 && showEmptyState && (
               <motion.div 
@@ -559,21 +573,29 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
             )}
           </AnimatePresence>
 
-          {filteredThoughts.length > 0 && filteredThoughts.map(thought => (
-            <ThoughtCard
-              key={thought.id}
-              thought={thought}
-              scale={scale}
-              onClick={() => onThoughtClick(thought)}
-              onReplyClick={(reply) => onReplyClick(thought, reply)}
-              onDragEnd={(x, y) => onThoughtMove(thought.id, x, y)}
-              isGlowing={thought.aiStatus === 'replying' || aiGlowThoughtId === thought.id || (thought.id === 'thought-tutorial-1' && tutorialStep === 'star')}
-              isHovered={hoveredThoughtId === thought.id}
-              onHoverStart={() => setHoveredThoughtId(thought.id)}
-              onHoverEnd={() => setHoveredThoughtId(null)}
-              tutorialStep={tutorialStep}
-            />
-          ))}
+          {filteredThoughts.length > 0 && filteredThoughts.map(thought => {
+            const isThoughtDimmed = focusEmotion !== null && thought.emotion !== focusEmotion;
+            const thoughtAgeMs = Date.now() - new Date(thought.timestamp).getTime();
+            const isThoughtNew = thoughtAgeMs < 45000 && !thought.isExample;
+
+            return (
+              <ThoughtCard
+                key={thought.id}
+                thought={thought}
+                scale={scale}
+                onClick={() => onThoughtClick(thought)}
+                onReplyClick={(reply) => onReplyClick(thought, reply)}
+                onDragEnd={(x, y) => onThoughtMove(thought.id, x, y)}
+                isGlowing={thought.aiStatus === 'replying' || aiGlowThoughtId === thought.id || (thought.id === 'thought-tutorial-1' && tutorialStep === 'star')}
+                isHovered={hoveredThoughtId === thought.id}
+                dimmed={isThoughtDimmed}
+                isNew={isThoughtNew}
+                onHoverStart={() => setHoveredThoughtId(thought.id)}
+                onHoverEnd={() => setHoveredThoughtId(null)}
+                tutorialStep={tutorialStep}
+              />
+            );
+          })}
         </div>
       </motion.div>
 
@@ -685,31 +707,53 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
           
           <div className="w-[1px] h-6 sm:h-8 bg-white/10 mx-1 flex-shrink-0" />
 
-          {/* Category Filters — desktop/tablet landscape only */}
-          <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+          {/* Emotion Constellation Filters */}
+          <div className="hidden md:flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             <motion.button
-              onClick={() => setActiveFilter('all')}
-              className="font-medium text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D66A3E] rounded px-1 cursor-pointer transition-colors whitespace-nowrap flex-shrink-0"
-              style={{ color: activeFilter === 'all' ? '#f9f3eb' : '#a89992', textShadow: activeFilter === 'all' ? '0 0 10px rgba(249,243,235,0.6)' : 'none' }}
-              whileHover={{ scale: 1.05, color: '#f9f3eb', textShadow: '0 0 10px rgba(249,243,235,0.6)' }}
+              onClick={() => setFocusEmotion(null)}
+              className="font-medium text-xs sm:text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D66A3E] rounded px-2 py-0.5 cursor-pointer transition-all whitespace-nowrap flex-shrink-0"
+              style={{
+                color: focusEmotion === null ? '#f9f3eb' : '#a89992',
+                textShadow: focusEmotion === null ? '0 0 10px rgba(249,243,235,0.6)' : 'none',
+              }}
+              whileHover={{ scale: 1.05, color: '#f9f3eb' }}
               whileTap={{ scale: 0.95 }}
-            >All</motion.button>
+            >
+              All
+            </motion.button>
             <div className="w-[1px] h-4 bg-white/10 flex-shrink-0" />
-            <motion.button
-              onClick={() => setActiveFilter('warm')}
-              className="font-medium text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D66A3E] rounded px-1 cursor-pointer transition-colors whitespace-nowrap flex-shrink-0"
-              style={{ color: activeFilter === 'warm' ? '#f9f3eb' : '#a89992', textShadow: activeFilter === 'warm' ? '0 0 10px rgba(214,106,62,0.7)' : 'none' }}
-              whileHover={{ scale: 1.05, color: '#D66A3E', textShadow: '0 0 10px rgba(214,106,62,0.7)' }}
-              whileTap={{ scale: 0.95 }}
-            >Warm</motion.button>
-            <div className="w-[1px] h-4 bg-white/10 flex-shrink-0" />
-            <motion.button
-              onClick={() => setActiveFilter('light')}
-              className="font-medium text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#D66A3E] rounded px-1 cursor-pointer transition-colors whitespace-nowrap flex-shrink-0"
-              style={{ color: activeFilter === 'light' ? '#f9f3eb' : '#a89992', textShadow: activeFilter === 'light' ? '0 0 10px rgba(100,150,255,0.7)' : 'none' }}
-              whileHover={{ scale: 1.05, color: '#6496ff', textShadow: '0 0 10px rgba(100,150,255,0.7)' }}
-              whileTap={{ scale: 0.95 }}
-            >Light</motion.button>
+            {EMOTION_CHIPS.map(chip => {
+              const isSelected = focusEmotion === chip.key;
+              return (
+                <motion.button
+                  key={chip.key}
+                  onClick={() => setFocusEmotion(current => current === chip.key ? null : chip.key)}
+                  className="flex items-center gap-1.5 font-medium text-xs rounded-full px-2.5 py-1 cursor-pointer transition-all whitespace-nowrap flex-shrink-0 border"
+                  style={{
+                    color: isSelected ? '#ffffff' : '#bda89f',
+                    backgroundColor: isSelected ? `${chip.color}25` : 'rgba(255,255,255,0.02)',
+                    borderColor: isSelected ? chip.color : 'rgba(255,255,255,0.08)',
+                    boxShadow: isSelected ? `0 0 12px ${chip.color}50` : 'none',
+                  }}
+                  whileHover={{
+                    scale: 1.05,
+                    color: '#ffffff',
+                    borderColor: chip.color,
+                    boxShadow: `0 0 10px ${chip.color}40`,
+                  }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{
+                      backgroundColor: chip.color,
+                      boxShadow: isSelected ? `0 0 8px ${chip.color}` : 'none',
+                    }}
+                  />
+                  <span>{chip.label}</span>
+                </motion.button>
+              );
+            })}
           </div>
 
           <div className="hidden md:block w-[1px] h-8 bg-white/10 mx-2 flex-shrink-0" />

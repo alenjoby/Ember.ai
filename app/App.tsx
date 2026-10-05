@@ -541,6 +541,7 @@ export default function App() {
     <div className="w-full h-[100dvh] relative overflow-hidden bg-[#f9f3eb]">
       <MainSpace
         thoughts={activeThoughts}
+        selectedThoughtId={activeView === 'thoughtDetail' && selectedThought ? selectedThought.id : null}
         onInputClick={handleInputClick}
         onThoughtClick={handleThoughtClick}
         onReplyClick={handleReplyClick}
@@ -578,6 +579,7 @@ export default function App() {
           <ThoughtDetailModal
             key="detail"
             thought={selectedThought}
+            allThoughts={activeThoughts}
             onClose={handleCloseModal}
             onAddResponse={(r) => handleAddResponse(selectedThought.id, r)}
             onOpenDraw={() => setShowDrawModal(true)}
