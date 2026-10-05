@@ -23,5 +23,12 @@ dist-ssr
 *.sln
 *.sw?
 
+# Secrets
+.env
+.env.*
+!.env.example
+supabase/.env
+supabase/functions/.env
+
 # Local private docs
 DONT PUSH ONLY LOCAL/
