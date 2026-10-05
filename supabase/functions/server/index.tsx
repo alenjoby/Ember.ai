@@ -17,7 +17,7 @@ import {
   VARIANTS,
 } from "./db.ts";
 import { helplineFor } from "./helplines.ts";
-import { AiUnavailableError, aiConfigured, gemini } from "./llm.ts";
+import { AiUnavailableError, aiConfigured, generate } from "./llm.ts";
 import { moderateImage, moderateText, moderateVoice, VoiceUnclearError } from "./moderation.ts";
 import { detectNegativity } from "./safeSpace.ts";
 import { isRateLimited } from "./rateLimit.ts";
@@ -160,7 +160,7 @@ app.get("/health", async (c) => {
   if (c.req.query("deep") !== "1") return c.json({ ok: true, ai: "up" });
   const t0 = Date.now();
   try {
-    await gemini([{ text: 'Return JSON only: {"ok": true}' }], { json: true, timeoutMs: 15000 });
+    await generate('Return JSON only: {"ok": true}', { json: true, timeoutMs: 15000 });
     return c.json({ ok: true, ai: "up", llmMs: Date.now() - t0 });
   } catch (err) {
     return c.json({ ok: true, ai: "error", llm: (err as Error).message.slice(0, 300) });

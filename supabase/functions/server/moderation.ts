@@ -1,7 +1,7 @@
 // Server-side moderation: rules (always) + Gemini (when available).
 // Never default to "allowed" when the AI check fails: fall back to the rules.
 import { detectNegativity, messageFor, type SafeSpaceResult, type Severity } from "./safeSpace.ts";
-import { bytesToBase64, fenced, gemini, parseJsonLoose } from "./llm.ts";
+import { bytesToBase64, fenced, gemini, generate, parseJsonLoose } from "./llm.ts";
 
 export interface ModerationResult {
   allowed: boolean;
@@ -57,15 +57,13 @@ function combine(rules: SafeSpaceResult, ai: AiVerdict | null): ModerationResult
 }
 
 async function geminiModerate(text: string): Promise<AiVerdict> {
-  const out = await gemini(
-    [{
-      text: `${POLICY}
+  const out = await generate(
+    `${POLICY}
 
 Return JSON only: {"allowed": boolean, "isCrisis": boolean, "severity": "clean"|"mild"|"moderate"|"severe", "reason": string}
 
 ${fenced(text)}`,
-    }],
-    { json: true, timeoutMs: 5000 },
+    { json: true, timeoutMs: 6000 },
   );
   return parseVerdict(parseJsonLoose(out));
 }
