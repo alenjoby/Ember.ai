@@ -125,8 +125,15 @@ export default function App() {
     try {
       const data = await api.getThoughts();
       const list = data || [];
+      // Positions you dragged to are local only (ember_positions); reapply them on every refetch,
+      // otherwise polling/realtime snaps dragged lanterns back to their server spot.
+      let savedPositions: Record<string, { x: number; y: number }> = {};
+      try {
+        savedPositions = JSON.parse(localStorage.getItem('ember_positions') || '{}');
+      } catch { /* ignore bad data */ }
       const parsedData = list.map((t: any) => ({
         ...t,
+        ...(savedPositions[t.id] ?? {}),
         timestamp: new Date(t.timestamp),
         responses: (t.responses || []).map((r: any) => ({
           ...r,

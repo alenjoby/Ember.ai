@@ -157,12 +157,15 @@ const floatAnimationStyles = `
   }
 `;
 
+// Handlers receive the thought/id so MainSpace can pass the same stable functions to every
+// card; with inline closures React.memo never skipped a render and hovering re-rendered all cards.
 const ThoughtCard = React.memo(function ThoughtCard({
   thought, onClick, onReplyClick, onDragEnd, isGlowing, isHovered, scale, onHoverStart, onHoverEnd, tutorialStep = 'none',
   dimmed = false, isNew = false
 }: {
-  thought: Thought; onClick: () => void; onReplyClick: (reply: ThoughtResponse) => void; onDragEnd: (x: number, y: number) => void;
-  isGlowing: boolean; isHovered: boolean; scale: number; onHoverStart: () => void; onHoverEnd: () => void;
+  thought: Thought; onClick: (thought: Thought) => void; onReplyClick: (thought: Thought, reply: ThoughtResponse) => void;
+  onDragEnd: (id: string, x: number, y: number) => void;
+  isGlowing: boolean; isHovered: boolean; scale: number; onHoverStart: (id: string) => void; onHoverEnd: () => void;
   tutorialStep?: 'none' | 'hud' | 'star' | 'reply' | 'complete';
   dimmed?: boolean;
   isNew?: boolean;
@@ -177,6 +180,15 @@ const ThoughtCard = React.memo(function ThoughtCard({
   const isTutorial = thought.id === 'thought-tutorial-1';
   const isDraggingRef = useRef(false);
 
+  // Drag moves the card with a transform. Once the new left/top is applied, clear that transform,
+  // otherwise the offset is counted twice and the card lands in the wrong place.
+  const dragX = useMotionValue(0);
+  const dragY = useMotionValue(0);
+  React.useLayoutEffect(() => {
+    dragX.set(0);
+    dragY.set(0);
+  }, [thought.x, thought.y, dragX, dragY]);
+
   return (
     <motion.div
       drag={!isTutorial}
@@ -188,19 +200,19 @@ const ThoughtCard = React.memo(function ThoughtCard({
         setTimeout(() => {
           isDraggingRef.current = false;
         }, 60);
-        onDragEnd(thought.x + info.offset.x / scale, thought.y + info.offset.y / scale);
+        onDragEnd(thought.id, thought.x + info.offset.x / scale, thought.y + info.offset.y / scale);
       }}
       className="absolute cursor-grab active:cursor-grabbing z-20"
       whileDrag={{ scale: 1.05, zIndex: 50 }}
-      style={{ left: thought.x, top: thought.y, width: 250, rotate: thought.rotation }}
+      style={{ left: thought.x, top: thought.y, x: dragX, y: dragY, width: 250, rotate: thought.rotation }}
       initial={{ opacity: 0, scale: 0.8, y: 35 }}
       animate={{ opacity: targetOpacity, scale: 1, y: 0 }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       onClick={(e) => {
         if (isDraggingRef.current || e.defaultPrevented) return;
-        onClick();
+        onClick(thought);
       }}
-      onHoverStart={onHoverStart}
+      onHoverStart={() => onHoverStart(thought.id)}
       onHoverEnd={onHoverEnd}
     >
       {isTutorial && tutorialStep === 'star' && (
@@ -234,7 +246,7 @@ const ThoughtCard = React.memo(function ThoughtCard({
           isHovered={isHovered}
           dimmed={dimmed}
           isNew={isNew}
-          onReplyClick={onReplyClick}
+          onReplyClick={(reply) => onReplyClick(thought, reply)}
           width={250}
         />
       </div>
@@ -279,6 +291,16 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
   const [showHint, setShowHint] = useState(true);
   const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([]);
   const [hoveredThoughtId, setHoveredThoughtId] = useState<string | null>(null);
+
+  // Stable card handlers (see ThoughtCard). The parent's callbacks change every render,
+  // so read them from a ref instead of depending on them.
+  const cardCallbacks = useRef({ onThoughtClick, onReplyClick, onThoughtMove });
+  cardCallbacks.current = { onThoughtClick, onReplyClick, onThoughtMove };
+  const cardClick = useCallback((t: Thought) => cardCallbacks.current.onThoughtClick(t), []);
+  const cardReplyClick = useCallback((t: Thought, r: ThoughtResponse) => cardCallbacks.current.onReplyClick(t, r), []);
+  const cardMove = useCallback((id: string, x: number, y: number) => cardCallbacks.current.onThoughtMove(id, x, y), []);
+  const cardHoverStart = useCallback((id: string) => setHoveredThoughtId(id), []);
+  const cardHoverEnd = useCallback(() => setHoveredThoughtId(null), []);
   const [focusEmotion, setFocusEmotion] = useState<string | null>(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showEmptyState, setShowEmptyState] = useState(true);
@@ -651,15 +673,15 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
                 key={thought.id}
                 thought={thought}
                 scale={scale}
-                onClick={() => onThoughtClick(thought)}
-                onReplyClick={(reply) => onReplyClick(thought, reply)}
-                onDragEnd={(x, y) => onThoughtMove(thought.id, x, y)}
+                onClick={cardClick}
+                onReplyClick={cardReplyClick}
+                onDragEnd={cardMove}
                 isGlowing={thought.aiStatus === 'replying' || aiGlowThoughtId === thought.id || (thought.id === 'thought-tutorial-1' && tutorialStep === 'star')}
                 isHovered={hoveredThoughtId === thought.id}
                 dimmed={isThoughtDimmed}
                 isNew={isThoughtNew}
-                onHoverStart={() => setHoveredThoughtId(thought.id)}
-                onHoverEnd={() => setHoveredThoughtId(null)}
+                onHoverStart={cardHoverStart}
+                onHoverEnd={cardHoverEnd}
                 tutorialStep={tutorialStep}
               />
             );
