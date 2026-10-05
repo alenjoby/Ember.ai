@@ -29,6 +29,7 @@ import {
 } from "./security.ts";
 import { generateLantern } from "./lantern.ts";
 import { scheduleAiReply } from "./aiReply.ts";
+import { demoEnabled, demoOnline, scheduleDemoReplies } from "./demo.ts";
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 
@@ -235,6 +236,8 @@ app.post("/thoughts", async (c) => {
 
   background("lantern", generateLantern(row.id, text, emotion as string | null));
   background("aiReply", scheduleAiReply(row.id));
+  // Demo video only: simulated peers. Never on crisis thoughts.
+  if (demoEnabled() && !verdict.isCrisis) background("demo", scheduleDemoReplies(row.id, emotion as string | null));
 
   return c.json(
     {
@@ -416,6 +419,9 @@ app.post("/moderate", async (c) => {
 
 // Helpline for the viewer's country
 app.get("/helpline", (c) => c.json(helplineFor(c.req.query("country"))));
+
+// Demo mode: how many dummy people the frontend adds to its live online count
+app.get("/demo", (c) => c.json({ enabled: demoEnabled(), online: demoEnabled() ? demoOnline() : 0 }));
 
 // Admin: exchange the passcode for a short-lived token (sent as X-Admin-Token on deletes)
 app.post("/verify-admin", async (c) => {
