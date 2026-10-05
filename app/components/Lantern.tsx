@@ -1,17 +1,22 @@
 import React, { useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Lantern as LanternType, Emotion } from '../types';
-import { Cloud, Flower2, Waves, Sun, Droplet, Sparkles } from 'lucide-react';
+import type { ThoughtResponse } from '../App';
+import { Cloud, Flower2, Waves, Sun, Droplet, Sparkles, Mic, Feather, Brush } from 'lucide-react';
+import { StickerIcon } from './StickerIcon';
 
 interface LanternProps {
+  id: string;
   lantern: LanternType | null;
   text: string;
   emotion?: Emotion;
   aiStatus: 'waiting' | 'replying' | 'done' | 'skipped';
   isExample?: boolean;
-  replyCount: number;
-  isSelected?: boolean;
+  responses: ThoughtResponse[];
+  isGlowing?: boolean;
+  isHovered?: boolean;
   onClick?: () => void;
+  onReplyClick?: (reply: ThoughtResponse) => void;
   width?: number;
 }
 
@@ -24,178 +29,416 @@ const EMOTION_ICONS: Record<string, React.ElementType> = {
   joyful: Sparkles,
 };
 
-// Render silhouettes for the 4 shapes
-function LanternSilhouette({ shape }: { shape: 'round' | 'tall' | 'paper' | 'star' }) {
+// Fallback presets per emotion from lantern-demo.html
+const FALLBACK_LANTERNS: Record<string, { palette: [string, string, string]; glow: number; flicker: number; shape: 'round' | 'tall' | 'paper' | 'star'; caption: string }> = {
+  lonely: { palette: ['#9DB4FF', '#3B4A8C', '#1A2040'], glow: 0.35, flicker: 0.2, shape: 'tall', caption: 'one window lit at night' },
+  anxious: { palette: ['#8FE3D8', '#2A8C88', '#123B3A'], glow: 0.55, flicker: 0.8, shape: 'paper', caption: 'breathing through the wind' },
+  grieving: { palette: ['#C9A7FF', '#5B3A8C', '#24123D'], glow: 0.45, flicker: 0.15, shape: 'round', caption: 'a candle for him' },
+  hopeful: { palette: ['#FFE7A3', '#F2B544', '#8A5A12'], glow: 0.7, flicker: 0.35, shape: 'tall', caption: 'morning light breaking' },
+  joyful: { palette: ['#FFE08A', '#FF9F43', '#FF6B6B'], glow: 0.9, flicker: 0.7, shape: 'star', caption: 'third time lucky' },
+  grateful: { palette: ['#D9F2B4', '#8DBF5A', '#3E5A22'], glow: 0.65, flicker: 0.3, shape: 'round', caption: 'soft ripples on water' },
+};
+
+/**
+ * 4 SVG Lantern Silhouettes matching lantern-demo.html exactly:
+ * - round: ellipse with hanger & base
+ * - tall: rounded vertical vessel with hanging wire
+ * - paper: folded diamond origami lantern
+ * - star: 10-point folded star polygon
+ */
+function LanternSvg({
+  shape,
+  gradientId,
+  edgeColor,
+}: {
+  shape: 'round' | 'tall' | 'paper' | 'star';
+  gradientId: string;
+  edgeColor: string;
+}) {
   switch (shape) {
-    case 'round':
-      return (
-        <svg viewBox="0 0 100 120" className="w-full h-full absolute inset-0 pointer-events-none opacity-20">
-          <ellipse cx="50" cy="62" rx="42" ry="46" fill="currentColor" />
-          <rect x="42" y="10" width="16" height="7" rx="3" fill="currentColor" />
-          <rect x="40" y="108" width="20" height="6" rx="2" fill="currentColor" />
-        </svg>
-      );
     case 'tall':
       return (
-        <svg viewBox="0 0 100 140" className="w-full h-full absolute inset-0 pointer-events-none opacity-20">
-          <rect x="22" y="24" width="56" height="92" rx="14" fill="currentColor" />
-          <path d="M 35 24 Q 50 12 65 24" stroke="currentColor" strokeWidth="4" fill="none" />
-          <rect x="32" y="116" width="36" height="6" rx="2" fill="currentColor" />
-        </svg>
-      );
-    case 'paper':
-      return (
-        <svg viewBox="0 0 100 120" className="w-full h-full absolute inset-0 pointer-events-none opacity-20">
-          <polygon points="50,15 88,40 88,95 50,112 12,95 12,40" fill="currentColor" />
+        <svg viewBox="0 0 120 180" className="w-[110px] h-[165px] drop-shadow-md select-none">
+          <line x1="60" y1="0" x2="60" y2="26" stroke="#6b5446" strokeWidth="2.5" strokeLinecap="round" />
+          <rect
+            x="22"
+            y="28"
+            width="76"
+            height="122"
+            rx="24"
+            fill={`url(#${gradientId})`}
+            stroke={edgeColor}
+            strokeWidth="2"
+          />
+          {/* Subtle paper ribs */}
+          <line x1="26" y1="68" x2="94" y2="68" stroke="rgba(255,255,255,0.18)" strokeWidth="1" strokeDasharray="3 3" />
+          <line x1="26" y1="108" x2="94" y2="108" stroke="rgba(255,255,255,0.18)" strokeWidth="1" strokeDasharray="3 3" />
         </svg>
       );
     case 'star':
       return (
-        <svg viewBox="0 0 100 120" className="w-full h-full absolute inset-0 pointer-events-none opacity-20">
-          <path
-            d="M 50 18 L 60 44 L 88 48 L 68 68 L 73 96 L 50 82 L 27 96 L 32 68 L 12 48 L 40 44 Z"
-            fill="currentColor"
+        <svg viewBox="0 0 120 180" className="w-[110px] h-[165px] drop-shadow-md select-none">
+          <line x1="60" y1="0" x2="60" y2="26" stroke="#6b5446" strokeWidth="2.5" strokeLinecap="round" />
+          <polygon
+            points="60,26 75,70 120,72 84,98 96,144 60,118 24,144 36,98 0,72 45,70"
+            fill={`url(#${gradientId})`}
+            stroke={edgeColor}
+            strokeWidth="2"
           />
+        </svg>
+      );
+    case 'paper':
+      return (
+        <svg viewBox="0 0 120 180" className="w-[110px] h-[165px] drop-shadow-md select-none">
+          <line x1="60" y1="0" x2="60" y2="24" stroke="#6b5446" strokeWidth="2.5" strokeLinecap="round" />
+          <polygon
+            points="60,24 100,56 100,126 60,154 20,126 20,56"
+            fill={`url(#${gradientId})`}
+            stroke={edgeColor}
+            strokeWidth="2"
+          />
+          <line x1="60" y1="24" x2="60" y2="154" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+        </svg>
+      );
+    case 'round':
+    default:
+      return (
+        <svg viewBox="0 0 120 180" className="w-[110px] h-[165px] drop-shadow-md select-none">
+          <line x1="60" y1="0" x2="60" y2="30" stroke="#6b5446" strokeWidth="2.5" strokeLinecap="round" />
+          <ellipse
+            cx="60"
+            cy="92"
+            rx="50"
+            ry="56"
+            fill={`url(#${gradientId})`}
+            stroke={edgeColor}
+            strokeWidth="2"
+          />
+          {/* Subtle wooden cap and base */}
+          <rect x="48" y="30" width="24" height="6" rx="2" fill="#523e32" />
+          <rect x="50" y="148" width="20" height="5" rx="2" fill="#523e32" />
         </svg>
       );
   }
 }
 
+/**
+ * Option 1: Firefly Embers surrounding the lantern.
+ * Each response hovers gently like an ember caught on rising warm air.
+ */
+function FireflyEmbers({
+  responses,
+  isHovered,
+  glowColor,
+  onReplyClick,
+}: {
+  responses: ThoughtResponse[];
+  isHovered: boolean;
+  glowColor: string;
+  onReplyClick?: (reply: ThoughtResponse) => void;
+}) {
+  const visibleReplies = responses.slice(0, 6);
+
+  // Pre-calculated organic hover positions around the lantern
+  const emberOffsets = [
+    { x: -70, y: -25, bobDur: 3.2, delay: 0 },
+    { x: 74, y: -10, bobDur: 3.7, delay: 0.4 },
+    { x: -65, y: 55, bobDur: 4.1, delay: 0.8 },
+    { x: 70, y: 70, bobDur: 3.5, delay: 0.2 },
+    { x: -45, y: 110, bobDur: 3.9, delay: 1.1 },
+    { x: 48, y: 120, bobDur: 4.4, delay: 0.6 },
+  ];
+
+  return (
+    <div className="absolute inset-0 pointer-events-none z-30">
+      {visibleReplies.map((reply, index) => {
+        const offset = emberOffsets[index % emberOffsets.length];
+        const expandFactor = isHovered ? 1.25 : 1.0;
+        const targetX = offset.x * expandFactor;
+        const targetY = offset.y * expandFactor;
+
+        return (
+          <motion.div
+            key={reply.id}
+            className="absolute left-1/2 top-1/2 pointer-events-auto cursor-pointer"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{
+              x: targetX,
+              y: [targetY, targetY - 8, targetY],
+              scale: isHovered ? 1.08 : 1,
+              opacity: 1,
+            }}
+            transition={{
+              y: {
+                duration: offset.bobDur,
+                repeat: Infinity,
+                ease: 'easeInOut',
+                delay: offset.delay,
+              },
+              x: { duration: 0.4, ease: 'easeOut' },
+              scale: { duration: 0.25 },
+              opacity: { duration: 0.5 },
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onReplyClick?.(reply);
+            }}
+            title={reply.type === 'note' ? reply.content : `${reply.type} reply`}
+          >
+            <div
+              className="relative flex items-center justify-center rounded-full bg-[rgba(15,10,18,0.85)] border border-[rgba(255,255,255,0.22)] backdrop-blur-md p-1.5 transition-all duration-200 hover:scale-125"
+              style={{
+                boxShadow: isHovered
+                  ? `0 0 16px ${glowColor}, inset 0 0 8px ${glowColor}`
+                  : `0 0 8px rgba(0,0,0,0.6)`,
+              }}
+            >
+              {/* Mini ember core */}
+              <div
+                className="absolute inset-0 rounded-full blur-[3px] pointer-events-none opacity-60"
+                style={{ backgroundColor: glowColor }}
+              />
+
+              <div className="relative z-10 flex items-center justify-center text-[#f9f3eb]">
+                {reply.type === 'sticker' ? (
+                  <StickerIcon nameOrEmoji={reply.content} size={15} />
+                ) : reply.type === 'voice' ? (
+                  <Mic size={12} className="text-amber-200" />
+                ) : reply.type === 'drawing' ? (
+                  <Brush size={12} className="text-amber-200" />
+                ) : (
+                  <Feather size={12} className="text-amber-200" />
+                )}
+              </div>
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Lantern({
+  id,
   lantern,
   text,
   emotion,
   aiStatus,
   isExample,
-  replyCount,
-  isSelected,
+  responses,
+  isGlowing,
+  isHovered,
   onClick,
-  width = 280,
+  onReplyClick,
+  width = 250,
 }: LanternProps) {
+  const gradientId = useMemo(() => `lantern-grad-${id.replace(/[^a-zA-Z0-9_-]/g, '')}`, [id]);
   const EmotionIcon = emotion ? EMOTION_ICONS[emotion] : null;
 
-  // Palette fallbacks for unlit / lighting lanterns
-  const [coreColor, glowColor, edgeColor] = useMemo(() => {
-    if (lantern?.palette && lantern.palette.length === 3) {
-      return lantern.palette;
+  // Resolve lantern data, with fallback to emotion presets or lonely default
+  const resolved = useMemo(() => {
+    if (lantern && lantern.palette && lantern.palette.length === 3) {
+      return lantern;
     }
-    return ['#fef3c7', '#d97706', '#451a03']; // amber default
-  }, [lantern]);
+    const preset = (emotion && FALLBACK_LANTERNS[emotion]) || FALLBACK_LANTERNS.lonely;
+    return {
+      palette: preset.palette,
+      glow: preset.glow,
+      flicker: preset.flicker,
+      shape: preset.shape,
+      sound: { mood: 'night' as const, instrument: 'pad' as const, key: 'D minor', tempo: 50 },
+      caption: preset.caption,
+    };
+  }, [lantern, emotion]);
 
-  const glowBrightness = lantern?.glow ?? 0.5;
-  const flickerRestlessness = lantern?.flicker ?? 0.3;
-  const shape = lantern?.shape ?? 'round';
+  const [coreColor, glowColor, edgeColor] = resolved.palette;
+  const glow = resolved.glow ?? 0.5;
+  const flicker = resolved.flicker ?? 0.3;
+  const shape = resolved.shape ?? 'round';
 
-  // Duration between 2s and 6s based on restlessness
-  const flickerDuration = Math.max(1.8, 6.0 - flickerRestlessness * 4.2);
+  // Flicker animation speed formula from lantern-demo.html: 5 - 4.1 * flicker
+  const flickerDuration = Math.max(1.0, 5.0 - 4.1 * flicker);
+
+  const isReplying = aiStatus === 'replying';
 
   return (
-    <motion.div
+    <div
       onClick={onClick}
-      whileHover={{ scale: 1.025, y: -2 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
       style={{ width }}
-      className={`relative cursor-pointer select-none rounded-3xl p-5 backdrop-blur-md transition-all ${
-        isSelected ? 'ring-2 ring-amber-300/80 shadow-2xl' : ''
-      }`}
+      className="relative flex flex-col items-center cursor-pointer select-none group focus:outline-none"
     >
-      {/* Outer ambient glow halo */}
+      {/* SVG Radial Gradient definition */}
+      <svg className="absolute w-0 h-0 overflow-hidden" aria-hidden="true">
+        <defs>
+          <radialGradient id={gradientId} cx="50%" cy="58%" r="62%">
+            <stop offset="0%" stopColor="#fff8ec" />
+            <stop offset="26%" stopColor={coreColor} />
+            <stop offset="70%" stopColor={glowColor} />
+            <stop offset="100%" stopColor={edgeColor} />
+          </radialGradient>
+        </defs>
+      </svg>
+
+      {/* Atmospheric Halo Glow behind the Lantern */}
       <motion.div
+        className="absolute rounded-full pointer-events-none"
+        style={{
+          width: 170,
+          height: 170,
+          top: 15,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: glowColor,
+          filter: `blur(${Math.max(22, glow * 40)}px)`,
+        }}
         animate={{
-          opacity: [glowBrightness * 0.45, glowBrightness * 0.75, glowBrightness * 0.45],
-          scale: [0.97, 1.04, 0.97],
+          opacity: [glow * 0.45, glow * 0.75, glow * 0.45],
+          scale: [0.95, 1.08, 0.95],
         }}
         transition={{
           duration: flickerDuration,
           repeat: Infinity,
           ease: 'easeInOut',
         }}
-        className="absolute -inset-4 rounded-3xl pointer-events-none blur-2xl"
-        style={{
-          background: `radial-gradient(circle, ${glowColor}55 0%, ${edgeColor}22 65%, transparent 100%)`,
-        }}
       />
 
-      {/* Main lantern vessel */}
-      <div
-        className="relative overflow-hidden rounded-2xl border border-white/10 shadow-lg text-white/90 p-5 flex flex-col justify-between min-h-[170px]"
-        style={{
-          background: lantern
-            ? `radial-gradient(circle at 50% 35%, ${coreColor}33 0%, ${glowColor}25 50%, ${edgeColor}44 100%)`
-            : 'radial-gradient(circle at 50% 35%, rgba(245,158,11,0.18) 0%, rgba(30,20,15,0.85) 100%)',
-          backgroundColor: '#0c0a09e0',
-        }}
-      >
-        {/* Silhouette overlay */}
-        <div style={{ color: coreColor }}>
-          <LanternSilhouette shape={shape} />
-        </div>
-
-        {/* Breathing inner flame core */}
+      {/* Extra glow if AI is replying or highlighted */}
+      {(isGlowing || isReplying) && (
         <motion.div
+          className="absolute rounded-full pointer-events-none"
+          style={{
+            width: 220,
+            height: 220,
+            top: -10,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: glowColor,
+            filter: 'blur(45px)',
+          }}
           animate={{
-            opacity: [0.7, 1, 0.75, 0.95, 0.7],
-            scale: [0.95, 1.08, 0.98, 1.04, 0.95],
+            opacity: [0.35, 0.75, 0.35],
+            scale: [0.95, 1.15, 0.95],
           }}
           transition={{
-            duration: flickerDuration * 0.8,
+            duration: 2.2,
             repeat: Infinity,
             ease: 'easeInOut',
           }}
-          className="absolute top-4 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full pointer-events-none blur-xl"
-          style={{ backgroundColor: coreColor }}
         />
+      )}
 
-        {/* Header: Emotion icon & badges */}
-        <div className="flex items-center justify-between gap-2 z-10">
-          <div className="flex items-center gap-1.5">
-            {EmotionIcon && (
-              <span
-                className="p-1.5 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-amber-200"
-                title={emotion}
-              >
-                <EmotionIcon size={14} />
-              </span>
-            )}
-            {lantern?.caption && (
-              <span className="text-[11px] font-serif italic text-amber-200/75 truncate max-w-[170px]">
-                "{lantern.caption}"
-              </span>
-            )}
-          </div>
+      {/* Lantern Lamp Silhouette Vessel */}
+      <motion.div
+        className="relative z-10 flex items-center justify-center"
+        animate={{
+          scale: [0.985, 1.015, 0.985],
+          filter: [
+            `drop-shadow(0 4px 14px ${glowColor}66)`,
+            `drop-shadow(0 6px 24px ${glowColor}aa)`,
+            `drop-shadow(0 4px 14px ${glowColor}66)`,
+          ],
+        }}
+        transition={{
+          duration: flickerDuration,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.96 }}
+      >
+        <LanternSvg shape={shape} gradientId={gradientId} edgeColor={edgeColor} />
 
-          <div className="flex items-center gap-1.5">
-            {isExample && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-mono bg-white/10 text-white/50 border border-white/10">
-                example
-              </span>
-            )}
-            {aiStatus === 'replying' && (
-              <span className="flex items-center gap-1 text-[11px] text-amber-300 font-serif italic animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                writing…
-              </span>
-            )}
-          </div>
-        </div>
+        {/* Inner Flame Glow Core */}
+        <motion.div
+          className="absolute w-10 h-10 rounded-full pointer-events-none blur-md"
+          style={{ backgroundColor: '#fff8ec', top: 75 }}
+          animate={{
+            opacity: [0.7, 1.0, 0.7],
+            scale: [0.9, 1.15, 0.9],
+          }}
+          transition={{
+            duration: flickerDuration * 0.7,
+            repeat: Infinity,
+            ease: 'easeInOut',
+          }}
+        />
+      </motion.div>
 
-        {/* Body: Thought message */}
-        <p className="my-3 text-[14px] leading-relaxed font-serif text-stone-100/90 line-clamp-4 z-10">
-          {text}
-        </p>
+      {/* Firefly Embers (Option 1 Responses) */}
+      {responses.length > 0 && (
+        <FireflyEmbers
+          responses={responses}
+          isHovered={isHovered ?? false}
+          glowColor={glowColor}
+          onReplyClick={onReplyClick}
+        />
+      )}
 
-        {/* Footer: Responses count & status */}
-        <div className="flex items-center justify-between pt-2 border-t border-white/10 text-[11px] text-stone-400 z-10">
-          <span>
-            {replyCount === 0 ? 'Quiet so far' : `${replyCount} ${replyCount === 1 ? 'answer' : 'answers'}`}
-          </span>
-          {!lantern && (
-            <span className="text-amber-300/80 font-serif italic animate-pulse">
-              lighting the lantern…
+      {/* Lantern Card Content & Message */}
+      <div className="relative z-20 mt-2 flex flex-col items-center text-center max-w-[240px]">
+        {/* Badges: Example & Emotion */}
+        <div className="flex items-center gap-1.5 mb-1">
+          {isExample && (
+            <span
+              className="px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-semibold bg-white/10 text-[#d8cfc7] border border-white/15 backdrop-blur-md"
+              style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
+            >
+              example
+            </span>
+          )}
+          {EmotionIcon && (
+            <span
+              className="text-[#f9f3eb]/70 p-1 rounded-full bg-white/5 backdrop-blur-sm"
+              title={emotion}
+            >
+              <EmotionIcon size={12} />
             </span>
           )}
         </div>
+
+        {/* Thought text excerpt */}
+        <p
+          className="text-[#f9f3eb] text-[15px] leading-[1.5] font-normal select-none line-clamp-3 px-2 py-1 rounded-lg backdrop-blur-sm bg-[rgba(10,7,12,0.4)] border border-[rgba(255,255,255,0.06)]"
+          style={{
+            fontFamily: "'Alegreya', serif",
+            textShadow: '0 2px 8px rgba(0,0,0,0.85)',
+          }}
+        >
+          {text}
+        </p>
+
+        {/* Poetic caption */}
+        {resolved.caption && (
+          <span
+            className="mt-1 text-[11px] text-[#e8cdb8]/80 italic tracking-wide transition-opacity duration-300"
+            style={{ fontFamily: "'Alegreya', serif", textShadow: '0 1px 4px rgba(0,0,0,0.7)' }}
+          >
+            "{resolved.caption}"
+          </span>
+        )}
+
+        {/* AI Replying Whisper */}
+        <AnimatePresence>
+          {isReplying && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: [0.6, 1, 0.6], y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              className="mt-1 flex items-center gap-1 text-[11px] text-[#FFB347] font-serif italic"
+            >
+              <span>✦ Ember is writing…</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Unlit / Loading indicator if lantern was null */}
+        {!lantern && (
+          <span className="mt-1 text-[10px] text-amber-300/70 font-serif italic animate-pulse">
+            lighting…
+          </span>
+        )}
       </div>
-    </motion.div>
+    </div>
   );
 }

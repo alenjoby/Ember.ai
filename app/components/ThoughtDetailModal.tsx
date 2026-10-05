@@ -863,6 +863,10 @@ export function ThoughtDetailModal({ thought, onClose, onAddResponse, onOpenDraw
                 'rounded-[18px] sm:rounded-[22px] px-4 py-4 sm:px-6 sm:py-5 relative overflow-hidden transition-all duration-300 border',
                 VARIANT_GLOWS[thought.variant] || VARIANT_GLOWS.warm
               ].join(' ')}
+              style={thought.lantern ? {
+                borderColor: `${thought.lantern.palette[1]}66`,
+                boxShadow: `0 8px 32px ${thought.lantern.palette[1]}28, inset 0 1px 0 rgba(255,255,255,0.08)`,
+              } : undefined}
             >
               {/* Hug pulse animation */}
               <AnimatePresence>
@@ -876,6 +880,29 @@ export function ThoughtDetailModal({ thought, onClose, onAddResponse, onOpenDraw
                   />
                 )}
               </AnimatePresence>
+
+              {/* Lantern Poetic Mood Bar */}
+              {thought.lantern && (
+                <div className="flex items-center gap-2 mb-3 relative z-10 pr-20">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full animate-pulse flex-shrink-0"
+                    style={{
+                      backgroundColor: thought.lantern.palette[0] || '#FFB347',
+                      boxShadow: `0 0 10px ${thought.lantern.palette[1] || '#D66A3E'}`
+                    }}
+                  />
+                  {thought.emotion && (
+                    <span className="text-[11px] uppercase tracking-wider font-semibold text-[#f9f3eb]/70 whitespace-nowrap" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
+                      {thought.emotion} · {thought.lantern.shape}
+                    </span>
+                  )}
+                  {thought.lantern.caption && (
+                    <span className="text-[12px] text-[#e8cdb8]/90 italic truncate" style={{ fontFamily: "'Alegreya', serif" }}>
+                      "{thought.lantern.caption}"
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Hug Button */}
               <div className="absolute top-4 right-14 z-10">

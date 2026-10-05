@@ -35,13 +35,6 @@ interface MainSpaceProps {
   onTriggerPanToStar?: () => void;
 }
 
-// Ambient glows for dark theme - deep colors, static for max performance
-const AMBIENT_GLOWS = [
-  { left: '15%', top: '20%', width: 800, height: 700, color: 'rgba(100, 50, 150, 0.08)' },
-  { left: '75%', top: '65%', width: 900, height: 800, color: 'rgba(214, 106, 62, 0.06)' },
-  { left: '80%', top: '15%', width: 600, height: 550, color: 'rgba(50, 100, 200, 0.05)' },
-  { left: '22%', top: '76%', width: 700, height: 600, color: 'rgba(214, 106, 62, 0.07)' },
-];
 
 const EMOJI_TO_ICON: Record<string, string> = {
   '🤍': 'sticker_heart',
@@ -188,76 +181,12 @@ const ThoughtCard = React.memo(function ThoughtCard({
   isGlowing: boolean; isHovered: boolean; scale: number; onHoverStart: () => void; onHoverEnd: () => void;
   tutorialStep?: 'none' | 'hud' | 'star' | 'reply' | 'complete';
 }) {
-  const isWarm = thought.variant === 'warm';
-  const isLight = thought.variant === 'light';
-  const isTeal = thought.variant === 'teal';
-  const isRose = thought.variant === 'rose';
-
-  const hasResponses = thought.responses.length > 0;
-  const maxResponses = thought.responses.slice(0, 8);
-
   const ageInHours = (new Date().getTime() - new Date(thought.timestamp).getTime()) / (1000 * 60 * 60);
   const targetOpacity = ageInHours > 20 ? Math.max(0.2, 1 - (ageInHours - 20) / 4) : 1;
 
   const charSum = thought.id.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
-  const duration = 4 + (charSum % 3);
+  const duration = 4.5 + (charSum % 3);
   const delay = -(charSum % 5);
-
-  const cardRadius = "16px 4px 16px 4px";
-
-  // Determine colors based on variant
-  let cardClass = '';
-  let hoverStyle = {};
-  let radialGlowStyle = {};
-  let starClass = '';
-  let starFilter = '';
-  let glowColor = '';
-
-  if (isWarm) {
-    cardClass = 'bg-[rgba(26,17,14,0.75)] border border-[rgba(214,106,62,0.25)] shadow-[0_16px_45px_-12px_rgba(214,106,62,0.2),_inset_0_1px_1px_rgba(255,255,255,0.06)]';
-    hoverStyle = {
-      boxShadow: '0 24px 60px -10px rgba(214,106,62,0.45), inset 0 1px 2px rgba(255,255,255,0.15)',
-      background: 'rgba(38, 24, 20, 0.85)',
-      borderColor: 'rgba(214,106,62,0.65)',
-    };
-    radialGlowStyle = { background: 'radial-gradient(circle at 30% 30%, rgba(214,106,62,0.12) 0%, transparent 60%)' };
-    starClass = 'text-[#D66A3E]';
-    starFilter = 'drop-shadow(0 0 4px rgba(214,106,62,0.8))';
-    glowColor = 'rgba(214,106,62,0.6)';
-  } else if (isLight) {
-    cardClass = 'bg-[rgba(16,21,32,0.65)] border border-[rgba(100,150,255,0.2)] shadow-[0_16px_45px_-12px_rgba(100,150,255,0.15),_inset_0_1px_1px_rgba(255,255,255,0.06)]';
-    hoverStyle = {
-      boxShadow: '0 24px 60px -10px rgba(100,150,255,0.35), inset 0 1px 2px rgba(255,255,255,0.15)',
-      background: 'rgba(23, 29, 43, 0.8)',
-      borderColor: 'rgba(100,150,255,0.55)',
-    };
-    radialGlowStyle = { background: 'radial-gradient(circle at 30% 30%, rgba(100,150,255,0.08) 0%, transparent 60%)' };
-    starClass = 'text-[#6496ff]';
-    starFilter = 'drop-shadow(0 0 4px rgba(100,150,255,0.8))';
-    glowColor = 'rgba(100,150,255,0.5)';
-  } else if (isTeal) {
-    cardClass = 'bg-[rgba(12,25,24,0.7)] border border-[rgba(13,255,210,0.2)] shadow-[0_16px_45px_-12px_rgba(13,255,210,0.15),_inset_0_1px_1px_rgba(255,255,255,0.06)]';
-    hoverStyle = {
-      boxShadow: '0 24px 60px -10px rgba(13,255,210,0.35), inset 0 1px 2px rgba(255,255,255,0.15)',
-      background: 'rgba(17, 35, 33, 0.8)',
-      borderColor: 'rgba(13,255,210,0.55)',
-    };
-    radialGlowStyle = { background: 'radial-gradient(circle at 30% 30%, rgba(13,255,210,0.08) 0%, transparent 60%)' };
-    starClass = 'text-[#0dffd2]';
-    starFilter = 'drop-shadow(0 0 4px rgba(13,255,210,0.8))';
-    glowColor = 'rgba(13,255,210,0.5)';
-  } else { // rose
-    cardClass = 'bg-[rgba(26,15,22,0.7)] border border-[rgba(255,110,181,0.2)] shadow-[0_16px_45px_-12px_rgba(255,110,181,0.15),_inset_0_1px_1px_rgba(255,255,255,0.06)]';
-    hoverStyle = {
-      boxShadow: '0 24px 60px -10px rgba(255,110,181,0.35), inset 0 1px 2px rgba(255,255,255,0.15)',
-      background: 'rgba(38, 20, 31, 0.8)',
-      borderColor: 'rgba(255,110,181,0.55)',
-    };
-    radialGlowStyle = { background: 'radial-gradient(circle at 30% 30%, rgba(255,110,181,0.08) 0%, transparent 60%)' };
-    starClass = 'text-[#ff6eb5]';
-    starFilter = 'drop-shadow(0 0 4px rgba(255,110,181,0.8))';
-    glowColor = 'rgba(255,110,181,0.5)';
-  }
 
   const isTutorial = thought.id === 'thought-tutorial-1';
 
@@ -270,8 +199,8 @@ const ThoughtCard = React.memo(function ThoughtCard({
       }}
       className="absolute cursor-grab active:cursor-grabbing z-20"
       whileDrag={{ scale: 1.05, zIndex: 50 }}
-      style={{ left: thought.x, top: thought.y, width: thought.width, rotate: thought.rotation }}
-      initial={{ opacity: 0, scale: 0.8, y: 30 }}
+      style={{ left: thought.x, top: thought.y, width: 250, rotate: thought.rotation }}
+      initial={{ opacity: 0, scale: 0.8, y: 35 }}
       animate={{ opacity: targetOpacity, scale: 1, y: 0 }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
       onClick={(e) => {
@@ -289,7 +218,7 @@ const ThoughtCard = React.memo(function ThoughtCard({
             className="bg-[rgba(20,15,25,0.98)] backdrop-blur-xl border border-[rgba(214,106,62,0.4)] rounded-[16px] px-4 py-3 text-center shadow-[0_12px_40px_rgba(0,0,0,0.6),_0_0_20px_rgba(214,106,62,0.15)] relative animate-pulse"
           >
             <p className="text-[#f9f3eb] text-[13px] font-medium leading-relaxed" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
-              Look, a floating ember. Click on the star to read it.
+              Look, a floating lantern. Click on it to read its whisper.
             </p>
             {/* Subtle arrow pointing down */}
             <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-[rgba(20,15,25,0.98)] border-r border-b border-[rgba(214,106,62,0.4)]" />
@@ -300,200 +229,20 @@ const ThoughtCard = React.memo(function ThoughtCard({
         className="relative w-full h-full animate-float-bob"
         style={{ '--float-duration': `${duration}s`, '--float-delay': `${delay}s` } as React.CSSProperties}
       >
-        {hasResponses && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0" style={{ width: 280, height: 280 }}>
-            {/* Orbit Rings */}
-            <motion.svg 
-                className="absolute inset-0 size-full" 
-                style={{ 
-                  overflow: 'visible', 
-                  filter: isHovered ? `drop-shadow(0 0 8px ${glowColor}) drop-shadow(0 0 20px ${glowColor})` : `drop-shadow(0 0 4px ${glowColor})` 
-                }}
-            >
-                <motion.circle cx="140" cy="140" r="140" fill="none" stroke={glowColor} strokeWidth="1.5" strokeDasharray="4 8" opacity={isHovered ? 0.6 : 0.25} 
-                  animate={{ rotate: 360 }} transition={{ duration: 40, repeat: Infinity, ease: 'linear' }} style={{ originX: '140px', originY: '140px' }}
-                />
-                <circle cx="140" cy="140" r="115" fill="none" stroke={glowColor} strokeWidth="0.5" opacity={isHovered ? 0.3 : 0.1} />
-                
-                <AnimatePresence>
-                  {isHovered && (
-                    <motion.circle 
-                      cx="140" cy="140" r="140" fill="none" stroke={glowColor} strokeWidth="2.5" 
-                      strokeDasharray="20 40" strokeLinecap="round"
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1, rotate: -360 }}
-                      exit={{ opacity: 0, scale: 1.05 }}
-                      transition={{ rotate: { duration: 15, repeat: Infinity, ease: 'linear' }, default: { duration: 0.4 } }}
-                      style={{ originX: '140px', originY: '140px' }}
-                    />
-                  )}
-                </AnimatePresence>
-            </motion.svg>
-
-            {/* Orbiting Satellites */}
-            <motion.div 
-                className="absolute inset-0 size-full"
-                animate={{ rotate: 360 }}
-                transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
-                style={{ originX: '140px', originY: '140px' }}
-            >
-                {maxResponses.map((res, i) => {
-                  const angle = (i / maxResponses.length) * Math.PI * 2;
-                  const radius = 140; // Orbit radius
-                  const x = 140 + Math.cos(angle) * radius;
-                  const y = 140 + Math.sin(angle) * radius;
-                  
-                  return (
-                    <motion.div
-                      key={res.id}
-                      className="absolute flex items-center justify-center rounded-full bg-[rgba(10,5,15,0.85)] border border-[rgba(255,255,255,0.2)] backdrop-blur-md cursor-pointer pointer-events-auto"
-                      style={{ 
-                        left: x - 18, top: y - 18, width: 36, height: 36,
-                        boxShadow: isHovered ? `0 0 15px ${glowColor}, inset 0 0 10px ${glowColor}` : `0 0 5px rgba(0,0,0,0.5)`,
-                        transformOrigin: 'center center'
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onReplyClick(res);
-                      }}
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1, rotate: -360 }}
-                      transition={{ 
-                        scale: { type: 'spring', bounce: 0.5, duration: 0.6 },
-                        opacity: { duration: 0.3 },
-                        rotate: { duration: 30, repeat: Infinity, ease: 'linear' }
-                      }}
-                    >
-                      {res.type === 'sticker' ? (
-                        <StickerIcon nameOrEmoji={res.content} size={18} className="drop-shadow-md" />
-                      ) : res.type === 'voice' ? (
-                        <Mic size={16} className="text-[#f9f3eb] drop-shadow-md" />
-                      ) : res.type === 'note' ? (
-                        <Feather size={16} className="text-[#f9f3eb] drop-shadow-md" />
-                      ) : res.type === 'drawing' ? (
-                        <Brush size={16} className="text-[#f9f3eb] drop-shadow-md" />
-                      ) : (
-                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: glowColor, boxShadow: `0 0 8px ${glowColor}` }} />
-                      )}
-                    </motion.div>
-                  );
-                })}
-            </motion.div>
-          </div>
-        )}
-        {isGlowing && (
-          <motion.div
-            className="absolute inset-[-4px] pointer-events-none"
-            style={{ borderRadius: cardRadius, skewX: -8 }}
-            animate={{ 
-              boxShadow: [
-                `0 0 15px rgba(255,255,255,0)`, 
-                `0 0 30px ${glowColor}`, 
-                `0 0 15px rgba(255,255,255,0)`
-              ] 
-            }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-          />
-        )}
-        
-        {isGlowing && (
-          <motion.div
-            className="absolute inset-[-20px] pointer-events-none"
-            style={{ 
-              borderRadius: cardRadius,
-              skewX: -8,
-              background: `radial-gradient(circle, ${glowColor.replace('0.5', '0.15').replace('0.6', '0.15')} 0%, transparent 70%)`
-            }}
-            animate={{
-              background: [
-                `radial-gradient(circle, ${glowColor.replace('0.5', '0.15').replace('0.6', '0.15')} 0%, transparent 70%)`,
-                `radial-gradient(circle, ${glowColor.replace('0.5', '0.3').replace('0.6', '0.3')} 0%, transparent 70%)`,
-                `radial-gradient(circle, ${glowColor.replace('0.5', '0.15').replace('0.6', '0.15')} 0%, transparent 70%)`,
-              ]
-            }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
-          />
-        )}
-
-        <motion.div
-          className={[
-            'relative overflow-hidden px-6 py-6 pr-10 transition-all duration-300 backdrop-blur-md',
-            cardClass
-          ].join(' ')}
-          style={{ 
-            borderRadius: cardRadius,
-            skewX: -8,
-          }}
-          whileHover={{
-            scale: 1.025,
-            y: -6,
-            ...hoverStyle
-          }}
-        >
-          {/* Radial Core Glow inside card */}
-          <div 
-            className="absolute inset-0 pointer-events-none z-0" 
-            style={radialGlowStyle}
-          />
-
-            {/* Unskew Content wrapper to keep text/star upright */}
-            <div style={{ skewX: 8 } as React.CSSProperties} className="relative z-10 flex flex-col items-center text-center max-w-[280px]">
-              {/* Star Anchor (Vertex) */}
-              <div className="absolute top-[-10px] right-[-10px] w-4 h-4 pointer-events-none">
-                <svg viewBox="0 0 24 24" className={`${starClass} fill-current`} style={{ filter: starFilter }}>
-                  <path d="M12,2 L14.5,9.5 L22,12 L14.5,14.5 L12,22 L9.5,14.5 L2,12 L9.5,9.5 Z" />
-                </svg>
-              </div>
-              
-              {thought.isExample && (
-                <div className="mb-1.5 flex justify-center">
-                  <span
-                    className="px-2 py-0.5 rounded-full text-[10px] tracking-wide uppercase bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] text-[#a89e96]"
-                    style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 600 }}
-                  >
-                    example
-                  </span>
-                </div>
-              )}
-
-              {thought.emotion && EMOTION_ICONS[thought.emotion] && (() => {
-                const Icon = EMOTION_ICONS[thought.emotion];
-                return (
-                  <div className="text-[#8a7f79] opacity-60 mb-2 flex justify-center">
-                    <Icon size={18} />
-                  </div>
-                );
-              })()}
-              
-              <p className="text-[#f9f3eb] text-[18px] leading-[1.48] not-italic select-none whitespace-pre-wrap break-words [overflow-wrap:anywhere] line-clamp-5" style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 400, letterSpacing: '0.01em', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-                {thought.text}
-              </p>
-
-            {thought.aiStatus === 'replying' && (
-              <motion.div
-                className="flex items-center justify-center gap-1.5 mt-3"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: [0.5, 1, 0.5] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-              >
-                <span
-                  className="text-[#D66A3E] text-[11px] tracking-wide italic"
-                  style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 500, textShadow: '0 0 8px rgba(214,106,62,0.4)' }}
-                >
-                  ✦ Ember is writing…
-                </span>
-              </motion.div>
-            )}
-
-            {isGlowing && thought.aiStatus !== 'replying' && (
-              <motion.div className="flex justify-center mt-3" initial={{ opacity: 0 }} animate={{ opacity: [0.4, 0.9, 0.4] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: 1 }}>
-                <span className="text-[#D66A3E]" style={{ fontFamily: "'Alegreya', serif", fontWeight: 700, fontSize: '10px', letterSpacing: '0.15em', textShadow: '0 0 10px rgba(214,106,62,0.5)' }}>
-                  ✦ Ember
-                </span>
-              </motion.div>
-            )}
-          </div>
-        </motion.div>
+        <Lantern
+          id={thought.id}
+          lantern={thought.lantern || null}
+          text={thought.text}
+          emotion={thought.emotion as any}
+          aiStatus={thought.aiStatus || 'waiting'}
+          isExample={thought.isExample}
+          responses={thought.responses || []}
+          isGlowing={isGlowing}
+          isHovered={isHovered}
+          onClick={onClick}
+          onReplyClick={onReplyClick}
+          width={250}
+        />
       </div>
     </motion.div>
   );
@@ -647,7 +396,13 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
 
   const filteredThoughts = useMemo(() => {
     if (activeFilter === 'all') return thoughts;
-    return thoughts.filter(t => t.variant === activeFilter);
+    if (activeFilter === 'warm') {
+      return thoughts.filter(t => t.variant === 'warm' || t.emotion === 'joyful' || t.emotion === 'hopeful' || t.emotion === 'grateful');
+    }
+    if (activeFilter === 'light') {
+      return thoughts.filter(t => t.variant === 'light' || t.variant === 'teal' || t.emotion === 'lonely' || t.emotion === 'anxious' || t.emotion === 'grieving');
+    }
+    return thoughts;
   }, [thoughts, activeFilter]);
 
   const bgX = useTransform(panX, x => x * 0.12);
@@ -717,7 +472,7 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
       onPointerDown={handlePointerDown}
       className="w-full h-[100dvh] relative overflow-hidden cursor-grab active:cursor-grabbing"
       style={{
-        background: 'radial-gradient(circle at 50% 50%, #1a1525 0%, #0a0812 60%, #030206 100%)'
+        background: 'radial-gradient(ellipse at 50% 10%, #241611 0%, #120c09 60%, #080504 100%)'
       }}
     >
       <style>{floatAnimationStyles}</style>
@@ -808,37 +563,37 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
         ].join(" ")}
         style={{ x: panX, y: panY, scale }}
       >
-        {/* Massive Flowing Nebulae Background */}
+        {/* Massive Flowing Nebulae Background - Gentle warm hearth tones */}
         <div className="absolute pointer-events-none w-[3000px] h-[3000px] flex items-center justify-center">
-          {/* Nebula 1: Warm Amber / Orange (Center-Right) */}
+          {/* Nebula 1: Warm Amber / Ember Glow (Center-Right) */}
           <div
             className="absolute rounded-full pointer-events-none animate-nebula-1"
             style={{
               width: '1800px',
               height: '1800px',
-              background: 'radial-gradient(circle, rgba(214,106,62,0.18) 0%, rgba(214,106,62,0.06) 40%, rgba(214,106,62,0) 70%)',
+              background: 'radial-gradient(circle, rgba(214,106,62,0.11) 0%, rgba(214,106,62,0.035) 45%, rgba(18,12,9,0) 75%)',
               left: '30%',
               top: '20%',
             }}
           />
-          {/* Nebula 2: Deep Purple / Indigo (Center-Left) */}
+          {/* Nebula 2: Deep Charcoal Dusk & Soft Violet (Center-Left) */}
           <div
             className="absolute rounded-full pointer-events-none animate-nebula-2"
             style={{
               width: '2000px',
               height: '2000px',
-              background: 'radial-gradient(circle, rgba(139,92,246,0.14) 0%, rgba(139,92,246,0.04) 45%, rgba(139,92,246,0) 70%)',
+              background: 'radial-gradient(circle, rgba(64,44,72,0.08) 0%, rgba(32,20,38,0.02) 45%, rgba(18,12,9,0) 75%)',
               left: '-20%',
               top: '-10%',
             }}
           />
-          {/* Nebula 3: Ethereal Teal / Blue (Bottom-Right) */}
+          {/* Nebula 3: Warm Honey Gold Hearth Dust (Bottom-Right) */}
           <div
             className="absolute rounded-full pointer-events-none animate-nebula-3"
             style={{
               width: '1600px',
               height: '1600px',
-              background: 'radial-gradient(circle, rgba(6,182,212,0.12) 0%, rgba(6,182,212,0.03) 40%, rgba(6,182,212,0) 70%)',
+              background: 'radial-gradient(circle, rgba(245,185,85,0.07) 0%, rgba(214,106,62,0.02) 45%, rgba(18,12,9,0) 75%)',
               left: '40%',
               top: '50%',
             }}
@@ -934,7 +689,7 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
         ].join(" ")}
       >
         <p className="text-[#f9f3eb]/95 text-[17px] pointer-events-auto tracking-wide font-normal leading-relaxed italic" style={{ fontFamily: "'Alegreya', serif", textShadow: '0 2px 10px rgba(0,0,0,0.9)' }}>
-          "Share your thoughts anonymously. Watch them drift and connect as stars in the night sky."
+          "Share your thoughts anonymously. Watch them drift and connect as glowing lanterns in the night sky."
         </p>
       </div>
 
@@ -1157,7 +912,7 @@ export function MainSpace({ thoughts, onInputClick, onThoughtClick, onReplyClick
               </h3>
 
               <p className="text-[#e2d9d1] text-[15px] leading-relaxed mb-6 opacity-90" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
-                Ember is an anonymous emotional sanctuary for those moments when feelings are hard to put into words. It provides a peaceful night sky where you can release your thoughts as glowing stars, connect with others through voice, drawing, or stickers, and know that you are never screaming into a silent void.
+                Ember is an anonymous emotional sanctuary for those moments when feelings are hard to put into words. It provides a peaceful night sky where you can release your thoughts as glowing lanterns, connect with others through voice, drawing, or stickers, and know that you are never screaming into a silent void.
               </p>
 
               <div className="w-full h-[1px] bg-white/10 mb-5" />

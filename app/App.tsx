@@ -435,17 +435,27 @@ export default function App() {
     if (tutorialStep === 'none') return null;
     return {
       id: 'thought-tutorial-1',
-      text: "I'm glad you drifted here. Tap on this star to see how we respond to each other.",
+      text: "I'm glad you drifted here. Tap on this lantern to see how we respond to each other.",
       timestamp: new Date(),
       rotation: -2,
       x: 0,
       y: -80,
       variant: 'warm',
       responses: tutorialReplies,
-      aiResponded: false,
+      aiStatus: 'done',
       width: 280,
       authorId: 'system',
-      emotion: 'grateful'
+      emotion: 'grateful',
+      showHelp: false,
+      isExample: true,
+      lantern: {
+        palette: ['#D9F2B4', '#8DBF5A', '#3E5A22'],
+        glow: 0.65,
+        flicker: 0.3,
+        shape: 'round',
+        sound: { mood: 'ocean', instrument: 'piano', key: 'C major', tempo: 60 },
+        caption: 'soft ripples on water',
+      },
     };
   }, [tutorialStep, tutorialReplies]);
 
