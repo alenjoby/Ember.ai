@@ -151,6 +151,15 @@ export default function App() {
       // Merge: DB is the source of truth, but keep locally-added thoughts
       // that haven't been persisted yet so they don't vanish on the next poll.
       setThoughts(prev => {
+        // Reuse the previous object for thoughts that didn't change, so React.memo'd lanterns
+        // skip re-rendering on each poll/realtime refetch (40+ lanterns re-rendered every time).
+        const sig = (t: any) => JSON.stringify([t.x, t.y, t.text, t.emotion, t.aiStatus, t.showHelp, t.isExample,
+          t.lantern, (t.responses || []).map((r: any) => [r.id, r.content, r.audioUrl, r.drawingData])]);
+        const prevById = new Map(prev.map(t => [t.id, t]));
+        for (let i = 0; i < parsedData.length; i++) {
+          const old = prevById.get(parsedData[i].id);
+          if (old && sig(old) === sig(parsedData[i])) parsedData[i] = old;
+        }
         const dbIds = new Set(parsedData.map((t: Thought) => t.id));
         // Keep ONLY very fresh local thoughts (created in the last 15s by us) that aren't in the DB yet
         const localOnly = prev.filter(t => {

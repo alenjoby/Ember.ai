@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import type { Thought, ThoughtResponse } from '../App';
 import { Lantern } from './Lantern';
-import { ConnectionThreads } from './ConnectionThreads';
+import { ConnectionThreads, type ConnectionThreadsHandle } from './ConnectionThreads';
 import { projectId, publicAnonKey } from '../../supabase/info';
 
 
@@ -168,6 +168,8 @@ interface ThoughtCardProps {
   onHoverStart: (id: string) => void;
   onHoverEnd: () => void;
   setIsDraggingCard: (dragging: boolean) => void;
+  /** Called once per animation frame while dragging, so connection threads follow live. */
+  onDragMove: (id: string, dx: number, dy: number) => void;
   tutorialStep?: 'none' | 'hud' | 'star' | 'reply' | 'complete';
   dimmed?: boolean;
   isNew?: boolean;
@@ -184,6 +186,7 @@ const ThoughtCard = React.memo(function ThoughtCard({
   onHoverStart,
   onHoverEnd,
   setIsDraggingCard,
+  onDragMove,
   tutorialStep = 'none',
   dimmed = false,
   isNew = false,
@@ -252,6 +255,7 @@ const ThoughtCard = React.memo(function ThoughtCard({
             if (cardRef.current) {
               cardRef.current.style.transform = `translate3d(${currentDx}px, ${currentDy}px, 0) ${baseTransform} scale(1.05)`;
             }
+            onDragMove(thought.id, currentDx, currentDy);
           });
         }
       }
@@ -276,6 +280,8 @@ const ThoughtCard = React.memo(function ThoughtCard({
         if (cardRef.current) {
           cardRef.current.style.transform = `translate3d(${finalX - startThoughtX}px, ${finalY - startThoughtY}px, 0) ${baseTransform}`;
         }
+        // Threads at the exact final spot, matching what React renders next.
+        onDragMove(thought.id, finalX - startThoughtX, finalY - startThoughtY);
         onDragEnd(thought.id, finalX, finalY);
       } else {
         if (cardRef.current) cardRef.current.style.transform = baseTransform;
@@ -300,6 +306,10 @@ const ThoughtCard = React.memo(function ThoughtCard({
         // transform is owned by the drag code / layout effect above, not set here,
         // so React re-renders never overwrite an in-progress drag position.
         touchAction: 'none',
+        // The 250px card box itself ignores the pointer; only the lantern vessel, text and reply
+        // chips (pointer-events-auto in Lantern) grab it. With 40+ lanterns the boxes covered
+        // nearly the whole canvas, so pressing "empty" space dragged a lantern instead of panning.
+        pointerEvents: 'none',
         opacity: targetOpacity,
         transition: isDragging ? 'none' : 'opacity 0.5s ease',
         willChange: isDragging ? 'transform' : undefined,
@@ -548,6 +558,12 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
   // re-render the canvas and every constellation thread mid-drag.
   const isDraggingCardRef = useRef(false);
   isDraggingCardRef.current = isDraggingCard;
+  // Threads follow a dragged lantern live (imperative, no React render per frame).
+  const threadsRef = useRef<ConnectionThreadsHandle>(null);
+  const handleDragMove = useCallback((id: string, dx: number, dy: number) => {
+    threadsRef.current?.moveNode(id, dx, dy);
+  }, []);
+
   const handleHoverStart = useCallback((id: string) => {
     if (!isDraggingCardRef.current) setHoveredThoughtId(id);
   }, []);
@@ -794,6 +810,7 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
         {/* Thoughts & Constellation Connection Threads */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
           <ConnectionThreads
+            ref={threadsRef}
             thoughts={thoughts}
             hoveredThoughtId={hoveredThoughtId}
             selectedThoughtId={selectedThoughtId ?? null}
@@ -835,6 +852,7 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
                 onReplyClick={onReplyClick}
                 onDragEnd={onThoughtMove}
                 setIsDraggingCard={setIsDraggingCard}
+                onDragMove={handleDragMove}
                 isGlowing={thought.aiStatus === 'replying' || aiGlowThoughtId === thought.id || (thought.id === 'thought-tutorial-1' && tutorialStep === 'star')}
                 isHovered={hoveredThoughtId === thought.id}
                 dimmed={isThoughtDimmed}
