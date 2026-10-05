@@ -166,6 +166,7 @@ export async function pickPosition(emotion?: string | null): Promise<Point> {
     .from("thoughts")
     .select("x, y, emotion")
     .eq("hidden", false)
+    .or(liveFilter())
     .order("created_at", { ascending: false })
     .limit(200);
   const existing = data ?? [];
@@ -203,4 +204,11 @@ export async function pickPosition(emotion?: string | null): Promise<Point> {
     }
   }
   return best;
+}
+
+/** Lanterns fade from the canvas after THOUGHT_TTL_HOURS (default 24). Examples never fade. */
+export function liveFilter(): string {
+  const hours = Number(Deno.env.get("THOUGHT_TTL_HOURS") ?? 24);
+  const cutoff = new Date(Date.now() - hours * 3_600_000).toISOString();
+  return `is_example.eq.true,created_at.gte."${cutoff}"`;
 }

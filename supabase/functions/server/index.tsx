@@ -6,6 +6,7 @@ import { bodyLimit } from "npm:hono@4/body-limit";
 import { decodeBase64 } from "jsr:@std/encoding@1/base64";
 import {
   EMOTIONS,
+  liveFilter,
   pickPosition,
   removeMedia,
   type ReplyRow,
@@ -169,14 +170,16 @@ app.get("/health", async (c) => {
 });
 
 // List thoughts (newest 200 visible, replies oldest first)
-// With DEMO_MODE off, simulated thoughts and replies (authorId demo_*) are hidden, not deleted.
+// Only lanterns from the last 24 h (plus examples). With DEMO_MODE off, simulated thoughts and
+// replies (authorId demo_*) are hidden too. Nothing is deleted.
 app.get("/thoughts", async (c) => {
   const demo = await demoEnabled();
   if (demo) background("demoAutopilot", demoAutopilotTick());
   let query = supabase
     .from("thoughts")
     .select("*, replies(*)")
-    .eq("hidden", false);
+    .eq("hidden", false)
+    .or(liveFilter());
   if (!demo) query = query.or("author_id.is.null,author_id.not.like.demo_*");
   const { data, error } = await query.order("created_at", { ascending: false }).limit(200);
   if (error) throw new Error(error.message);
