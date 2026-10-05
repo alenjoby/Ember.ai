@@ -197,9 +197,19 @@ const ThoughtCard = React.memo(function ThoughtCard({
 
   const isTutorial = thought.id === 'thought-tutorial-1';
 
-  // Smooth pointer drag state
-  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Smooth pointer drag: while dragging, move the card with a GPU transform once per animation
+  // frame, written straight to the DOM. No React state per pointermove, so the Lantern subtree
+  // doesn't re-render 60-120x/s and left/top don't force layout every frame.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const baseTransform = `rotate(${thought.rotation}deg)`;
+
+  // After a drop, the new left/top arrives via props: only then drop the drag translate,
+  // so the card never flashes back to its old spot.
+  React.useLayoutEffect(() => {
+    if (cardRef.current) cardRef.current.style.transform = baseTransform;
+  }, [thought.x, thought.y, baseTransform]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (isTutorial || e.button !== 0) return;
@@ -236,7 +246,14 @@ const ThoughtCard = React.memo(function ThoughtCard({
       if (didMove) {
         currentDx = dxScreen / scale;
         currentDy = dyScreen / scale;
-        setDragOffset({ x: currentDx, y: currentDy });
+        if (rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = null;
+            if (cardRef.current) {
+              cardRef.current.style.transform = `translate3d(${currentDx}px, ${currentDy}px, 0) ${baseTransform} scale(1.05)`;
+            }
+          });
+        }
       }
     };
 
@@ -244,6 +261,10 @@ const ThoughtCard = React.memo(function ThoughtCard({
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
 
       setIsDragging(false);
       setIsDraggingCard(false);
@@ -251,10 +272,13 @@ const ThoughtCard = React.memo(function ThoughtCard({
       if (didMove) {
         const finalX = Math.round(startThoughtX + currentDx);
         const finalY = Math.round(startThoughtY + currentDy);
-        setDragOffset({ x: 0, y: 0 });
+        // Keep the card where it was dropped until the new left/top lands (layout effect above).
+        if (cardRef.current) {
+          cardRef.current.style.transform = `translate3d(${finalX - startThoughtX}px, ${finalY - startThoughtY}px, 0) ${baseTransform}`;
+        }
         onDragEnd(thought.id, finalX, finalY);
       } else {
-        setDragOffset({ x: 0, y: 0 });
+        if (cardRef.current) cardRef.current.style.transform = baseTransform;
         onClick(thought);
       }
     };
@@ -266,17 +290,19 @@ const ThoughtCard = React.memo(function ThoughtCard({
 
   return (
     <div
+      ref={cardRef}
       onPointerDown={handlePointerDown}
-      className={`absolute select-none ${isDragging ? 'z-50 scale-105 shadow-2xl cursor-grabbing' : 'z-20 cursor-grab'}`}
+      className={`absolute select-none ${isDragging ? 'z-50 shadow-2xl cursor-grabbing' : 'z-20 cursor-grab'}`}
       style={{
-        left: thought.x + dragOffset.x,
-        top: thought.y + dragOffset.y,
+        left: thought.x,
+        top: thought.y,
         width: 250,
-        transform: `rotate(${thought.rotation}deg)`,
+        // transform is owned by the drag code / layout effect above, not set here,
+        // so React re-renders never overwrite an in-progress drag position.
         touchAction: 'none',
         opacity: targetOpacity,
         transition: isDragging ? 'none' : 'opacity 0.5s ease',
-        willChange: isDragging ? 'left, top' : undefined,
+        willChange: isDragging ? 'transform' : undefined,
       }}
       onMouseEnter={() => onHoverStart(thought.id)}
       onMouseLeave={onHoverEnd}
@@ -518,12 +544,16 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
   scaleRef.current = scale;
   const getScale = useCallback(() => scaleRef.current, []);
 
+  // Ignore hover changes while a lantern is being dragged across others: each one would
+  // re-render the canvas and every constellation thread mid-drag.
+  const isDraggingCardRef = useRef(false);
+  isDraggingCardRef.current = isDraggingCard;
   const handleHoverStart = useCallback((id: string) => {
-    setHoveredThoughtId(id);
+    if (!isDraggingCardRef.current) setHoveredThoughtId(id);
   }, []);
 
   const handleHoverEnd = useCallback(() => {
-    setHoveredThoughtId(null);
+    if (!isDraggingCardRef.current) setHoveredThoughtId(null);
   }, []);
 
   const emberCycleIndexRef = useRef(0);
