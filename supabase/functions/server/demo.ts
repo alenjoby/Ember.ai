@@ -6,8 +6,25 @@ import { pickPosition, supabase, VARIANTS } from "./db.ts";
 import { generateLantern } from "./lantern.ts";
 import { scheduleAiReply } from "./aiReply.ts";
 
-export function demoEnabled(): boolean {
-  return Deno.env.get("DEMO_MODE") === "true";
+// Source of truth: app_settings.demo_mode (set by the admin toggle). Until it is set,
+// the DEMO_MODE secret decides. Cached for 5 s per instance.
+let demoCache: { value: boolean; at: number } | null = null;
+
+export async function demoEnabled(): Promise<boolean> {
+  if (demoCache && Date.now() - demoCache.at < 5000) return demoCache.value;
+  const { data, error } = await supabase.from("app_settings").select("value").eq("key", "demo_mode").maybeSingle();
+  if (error) console.warn("[demo] settings read failed:", error.message);
+  const value = typeof data?.value === "boolean" ? data.value : Deno.env.get("DEMO_MODE") === "true";
+  demoCache = { value, at: Date.now() };
+  return value;
+}
+
+export async function setDemoEnabled(value: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert({ key: "demo_mode", value, updated_at: new Date().toISOString() });
+  if (error) throw new Error(error.message);
+  demoCache = { value, at: Date.now() };
 }
 
 /** Dummy online count: changes slowly (every 5 min) so every viewer sees about the same number. */
@@ -132,7 +149,7 @@ let lastAutopilotCheck = 0;
  * thought if the newest one is older than DEMO_POST_EVERY_SEC. Never throws.
  */
 export async function demoAutopilotTick(): Promise<void> {
-  if (!demoEnabled()) return;
+  if (!(await demoEnabled())) return;
   const everyMs = Number(Deno.env.get("DEMO_POST_EVERY_SEC") ?? 30) * 1000;
   const now = Date.now();
   if (now - lastAutopilotCheck < 5000) return; // per-instance debounce

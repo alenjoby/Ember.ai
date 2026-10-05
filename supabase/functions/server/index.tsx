@@ -30,7 +30,7 @@ import {
 } from "./security.ts";
 import { generateLantern, guessEmotion } from "./lantern.ts";
 import { scheduleAiReply } from "./aiReply.ts";
-import { demoAutopilotTick, demoEnabled, demoOnline, scheduleDemoReplies } from "./demo.ts";
+import { demoAutopilotTick, demoEnabled, demoOnline, scheduleDemoReplies, setDemoEnabled } from "./demo.ts";
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 
@@ -169,7 +169,7 @@ app.get("/health", async (c) => {
 // List thoughts (newest 200 visible, replies oldest first)
 // With DEMO_MODE off, simulated thoughts and replies (authorId demo_*) are hidden, not deleted.
 app.get("/thoughts", async (c) => {
-  const demo = demoEnabled();
+  const demo = await demoEnabled();
   if (demo) background("demoAutopilot", demoAutopilotTick());
   let query = supabase
     .from("thoughts")
@@ -232,7 +232,7 @@ app.post("/thoughts", async (c) => {
   background("lantern", generateLantern(row.id, text, emotion as string | null, verdict.isCrisis));
   background("aiReply", scheduleAiReply(row.id));
   // Demo video only: simulated peers. Never on crisis thoughts.
-  if (demoEnabled() && !verdict.isCrisis) background("demo", scheduleDemoReplies(row.id, emotion as string | null));
+  if (!verdict.isCrisis && (await demoEnabled())) background("demo", scheduleDemoReplies(row.id, emotion as string | null));
 
   return c.json(
     {
@@ -416,7 +416,21 @@ app.post("/moderate", async (c) => {
 app.get("/helpline", (c) => c.json(helplineFor(c.req.query("country"))));
 
 // Demo mode: how many dummy people the frontend adds to its live online count
-app.get("/demo", (c) => c.json({ enabled: demoEnabled(), online: demoEnabled() ? demoOnline() : 0 }));
+app.get("/demo", async (c) => {
+  const enabled = await demoEnabled();
+  return c.json({ enabled, online: enabled ? demoOnline() : 0 });
+});
+
+// Admin toggle for demo mode (X-Admin-Token from /verify-admin)
+app.post("/demo", async (c) => {
+  if (!(await verifyAdminToken(c.req.header("X-Admin-Token")))) {
+    return fail(c, 403, "forbidden", "Only an admin can change demo mode.");
+  }
+  const body = await readJson(c);
+  if (typeof body?.enabled !== "boolean") return fail(c, 400, "bad_request", "Send { enabled: true | false }.");
+  await setDemoEnabled(body.enabled);
+  return c.json({ enabled: body.enabled, online: body.enabled ? demoOnline() : 0 });
+});
 
 // Admin: exchange the passcode for a short-lived token (sent as X-Admin-Token on deletes)
 app.post("/verify-admin", async (c) => {
