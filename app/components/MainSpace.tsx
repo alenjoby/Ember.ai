@@ -689,16 +689,48 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
     }
   }, [panToTarget, onPanComplete, panX, panY]);
 
+  // Panning lives on this full-screen root, not as framer `drag` on the canvas layer:
+  // - the canvas layer moves/zooms with the view, so after panning or zooming out its box no
+  //   longer covered the screen and presses outside it couldn't pan;
+  // - framer's native listener on the canvas fired before a lantern's React stopPropagation,
+  //   so grabbing a lantern often panned too (lantern moved double, threads slid off).
+  // Lantern cards and reply chips stop React propagation, so this never runs for them.
   const handlePointerDown = (e: React.PointerEvent) => {
-    if ((e.target as HTMLElement).tagName === 'DIV' && (e.target as HTMLElement).className.includes('origin-center')) {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'DIV' && target.className.includes('origin-center')) {
       const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const newRipple = { id: Date.now(), x, y };
-      setRipples(prev => [...prev, newRipple]);
-      setTimeout(() => setRipples(prev => prev.filter(r => r.id !== newRipple.id)), 2000);
+      if (rect) {
+        const newRipple = { id: Date.now(), x: e.clientX - rect.left, y: e.clientY - rect.top };
+        setRipples(prev => [...prev, newRipple]);
+        setTimeout(() => setRipples(prev => prev.filter(r => r.id !== newRipple.id)), 2000);
+      }
     }
+
+    if (e.button !== 0 || tutorialStep === 'hud') return;
+    if (target.closest('button, a, input, textarea, select, [role="dialog"], [data-no-pan]')) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startPanX = panX.get();
+    const startPanY = panY.get();
+    let panning = false;
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (!panning && Math.hypot(dx, dy) < 3) return;
+      panning = true;
+      panX.set(startPanX + dx);
+      panY.set(startPanY + dy);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
   };
 
   const centerPan = () => {
@@ -715,7 +747,8 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
       onPointerDown={handlePointerDown}
       className="w-full h-[100dvh] relative overflow-hidden cursor-grab active:cursor-grabbing"
       style={{
-        background: 'radial-gradient(ellipse at 50% 10%, #241611 0%, #120c09 60%, #080504 100%)'
+        background: 'radial-gradient(ellipse at 50% 10%, #241611 0%, #120c09 60%, #080504 100%)',
+        touchAction: 'none', // one-finger pan via pointer events (pinch zoom keeps its own touch handlers)
       }}
     >
       <style>{floatAnimationStyles}</style>
@@ -760,8 +793,6 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
 
       {/* Infinite canvas */}
       <motion.div
-        drag={tutorialStep !== 'hud' && !isDraggingCard}
-        dragElastic={0} dragMomentum={false}
         className={[
           "absolute inset-0 origin-center flex items-center justify-center transition-[filter,opacity] duration-500",
           tutorialStep === 'hud' ? "blur-[3px] opacity-40 pointer-events-none" : ""
