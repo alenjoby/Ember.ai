@@ -22,6 +22,7 @@ import { api, getOwnerToken } from './api';
 import fixtureThoughts from '../fixtures/thoughts.json';
 import { CrisisCard, detectBrowserCountry } from './components/CrisisCard';
 import type { Helpline } from './types';
+import { isPerfThought, makePerfThoughts, perfCountFromUrl, PerfOverlay } from './perfMode';
 
 const getAnonUserId = () => {
   let uid = localStorage.getItem('anon_user_id');
@@ -125,6 +126,13 @@ export default function App() {
   }, []);
 
   // Demo mode: server says how many simulated people to add to the live count (0 when off)
+  // Performance test mode (?perf=100 or the dev button): local-only synthetic lanterns.
+  const [perfCount, setPerfCount] = useState(() => perfCountFromUrl());
+  const [perfThoughts, setPerfThoughts] = useState<Thought[]>([]);
+  useEffect(() => {
+    setPerfThoughts(perfCount ? makePerfThoughts(perfCount) : []);
+  }, [perfCount]);
+
   const [demoOnline, setDemoOnline] = useState(0);
   const [demoEnabled, setDemoEnabled] = useState<boolean | null>(null);
   useEffect(() => {
@@ -350,6 +358,12 @@ export default function App() {
   const handleDeleteThought = useCallback(async (thoughtId: string) => {
     const confirmDelete = window.confirm("Are you sure you want to return this thought to ash?");
     if (!confirmDelete) return;
+    if (isPerfThought(thoughtId)) {
+      setPerfThoughts(prev => prev.filter(t => t.id !== thoughtId));
+      setActiveView('space');
+      setSelectedThought(null);
+      return;
+    }
 
     try {
       setThoughts(prev => prev.filter(t => t.id !== thoughtId));
@@ -493,6 +507,10 @@ export default function App() {
     thoughtId: string,
     response: Omit<ThoughtResponse, 'id' | 'timestamp'>
   ) => {
+    if (isPerfThought(thoughtId)) {
+      alert('This is a performance-test lantern (only in your browser), so it can\'t receive replies.');
+      return;
+    }
     const newResponse: ThoughtResponse = {
       ...response,
       id: Date.now().toString(),
@@ -554,6 +572,10 @@ export default function App() {
   }, [anonUserId]);
 
   const handleThoughtMove = useCallback((id: string, x: number, y: number) => {
+    if (isPerfThought(id)) {
+      setPerfThoughts(prev => prev.map(t => (t.id === id ? { ...t, x, y } : t)));
+      return;
+    }
     try {
       const raw = localStorage.getItem('ember_positions');
       const positions = raw ? JSON.parse(raw) : {};
@@ -609,8 +631,8 @@ export default function App() {
     if (tutorialThought) {
       return [tutorialThought];
     }
-    return timeFiltered;
-  }, [thoughts, tutorialThought]);
+    return perfThoughts.length ? [...timeFiltered, ...perfThoughts] : timeFiltered;
+  }, [thoughts, tutorialThought, perfThoughts]);
 
   if (loading) {
     return (
@@ -698,6 +720,21 @@ export default function App() {
           Demo {demoEnabled ? 'on' : 'off'}
         </button>
       )}
+      {import.meta.env.DEV && (
+        <button
+          onClick={() => setPerfCount(c => (c ? 0 : 100))}
+          className="fixed bottom-4 left-28 z-[100] rounded-full px-3 py-1.5 text-xs font-medium shadow-md border transition-colors"
+          style={{
+            background: perfCount ? '#3b82f6' : 'rgba(255,255,255,0.85)',
+            color: perfCount ? '#fff' : '#5a4c44',
+            borderColor: perfCount ? '#3b82f6' : 'rgba(90,76,68,0.25)',
+          }}
+          title="Dev only: add 100 local test lanterns + FPS meter (also ?perf=100 in the URL)"
+        >
+          Perf {perfCount ? `${perfCount} on` : 'off'}
+        </button>
+      )}
+      {perfCount > 0 && <PerfOverlay count={perfCount} />}
       <MainSpace
         thoughts={activeThoughts}
         selectedThoughtId={activeView === 'thoughtDetail' && selectedThought ? selectedThought.id : null}
