@@ -215,13 +215,32 @@ const ThoughtCard = React.memo(function ThoughtCard({
   }, [thought.x, thought.y, baseTransform]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isTutorial || e.button !== 0) return;
+    if (e.button !== 0) return;
     // Don't drag if clicking an interactive button or reply
     if ((e.target as HTMLElement).closest('button, [data-no-drag]')) return;
 
     e.stopPropagation();
     if (e.nativeEvent && e.nativeEvent.stopImmediatePropagation) {
       e.nativeEvent.stopImmediatePropagation();
+    }
+
+    // The tutorial lantern can't be dragged, but it must still open on click: clicks are
+    // detected here (press + release without moving), so returning early broke the tutorial.
+    if (isTutorial) {
+      const sx = e.clientX;
+      const sy = e.clientY;
+      const onUp = (upEvt: PointerEvent) => {
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+        if (Math.hypot(upEvt.clientX - sx, upEvt.clientY - sy) <= 6) onClick(thought);
+      };
+      const onCancel = () => {
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+      };
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onCancel);
+      return;
     }
 
     const startClientX = e.clientX;
