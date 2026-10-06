@@ -21,6 +21,10 @@ import { Sparkles } from 'lucide-react';
 import { api, getOwnerToken } from './api';
 import fixtureThoughts from '../fixtures/thoughts.json';
 import { CrisisCard, detectBrowserCountry } from './components/CrisisCard';
+import { SafeSpaceGuard } from './components/SafeSpaceGuard';
+
+/** Thrown after the popup is shown, so the compose/reply UI keeps the user's text or recording. */
+class ShownToUserError extends Error {}
 import type { Helpline } from './types';
 import { isPerfThought, makePerfThoughts, perfCountFromUrl, PerfOverlay } from './perfMode';
 
@@ -44,6 +48,8 @@ export interface ThoughtResponse {
   drawingData?: string;
   audioUrl?: string;
   authorId?: string;
+  /** Only when sending a voice reply: recording length, required by the server. */
+  durationSec?: number;
 }
 
 export interface Thought {
@@ -104,6 +110,13 @@ export default function App() {
   const [activeToast, setActiveToast] = useState<{ id: string; thought: Thought } | null>(null);
   const [panToTarget, setPanToTarget] = useState<{ x: number; y: number } | null>(null);
   const [globalAiAudioPlaying, setGlobalAiAudioPlaying] = useState(false);
+  // One popup (SafeSpaceGuard) for blocked posts/replies and send errors, instead of alert().
+  const [notice, setNotice] = useState<{ message: string; severity: 'mild' | 'moderate' | 'severe' } | null>(null);
+  const [noticeVisible, setNoticeVisible] = useState(false);
+  const showNotice = useCallback((message: string, severity: 'mild' | 'moderate' | 'severe' = 'mild') => {
+    setNotice({ message, severity });
+    setNoticeVisible(true);
+  }, []);
   const [voiceCount, setVoiceCount] = useState(1);
   const [loading, setLoading] = useState(true);
   const loadingRef = useRef(loading);
@@ -475,8 +488,8 @@ export default function App() {
       });
 
       if ('blocked' in res && res.blocked) {
-        alert(res.reason || "This message couldn't be released.");
-        return;
+        showNotice(res.reason || "This message couldn't be released.", res.severity || 'moderate');
+        throw new ShownToUserError('blocked'); // keeps the draft in ComposeModal
       }
 
       if ('thought' in res) {
@@ -497,11 +510,13 @@ export default function App() {
         }
       }
     } catch (err: any) {
-      console.error('Error creating thought:', err);
-      alert(err.message || 'Network error while releasing thought.');
+      if (!(err instanceof ShownToUserError)) {
+        console.error('Error creating thought:', err);
+        showNotice(err.message || "Couldn't release your thought. Check your connection and try again.");
+      }
       throw err;
     }
-  }, [anonUserId]);
+  }, [anonUserId, showNotice]);
 
   const handleAddResponse = useCallback(async (
     thoughtId: string,
@@ -538,12 +553,13 @@ export default function App() {
         content: response.content,
         drawingData: response.drawingData,
         audioData: response.audioUrl,
+        durationSec: response.durationSec,
         authorId: anonUserId,
       });
 
       if ('blocked' in res && res.blocked) {
-        alert(res.reason || "This reply couldn't be sent.");
-        return;
+        showNotice(res.reason || "This reply couldn't be sent.", res.severity || 'moderate');
+        throw new ShownToUserError('blocked'); // keeps the note/recording in the reply tab
       }
 
       if ('reply' in res) {
@@ -565,11 +581,13 @@ export default function App() {
         });
       }
     } catch (err: any) {
-      console.error('Error adding reply:', err);
-      alert(err.message || 'Failed to send reply.');
+      if (!(err instanceof ShownToUserError)) {
+        console.error('Error adding reply:', err);
+        showNotice(err.message || "Couldn't send your reply. Check your connection and try again.");
+      }
       throw err;
     }
-  }, [anonUserId]);
+  }, [anonUserId, showNotice]);
 
   const handleThoughtMove = useCallback((id: string, x: number, y: number) => {
     if (isPerfThought(id)) {
@@ -597,6 +615,30 @@ export default function App() {
     }
     setShowDrawModal(false);
   }, [selectedThought, handleAddResponse]);
+
+  // Auto-play Ember's voice reply once when it arrives on one of YOUR thoughts.
+  // Replies already there when the page loaded are only marked as seen (no surprise audio).
+  const seenAiRepliesRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (loading) return;
+    const mine = thoughts.filter(t => t.authorId === anonUserId || getOwnerToken(t.id));
+    const aiVoice = mine.flatMap(t => t.responses.filter(r => r.isAI && r.audioUrl));
+    if (seenAiRepliesRef.current === null) {
+      seenAiRepliesRef.current = new Set(aiVoice.map(r => r.id));
+      return;
+    }
+    const seen = seenAiRepliesRef.current;
+    const fresh = aiVoice.filter(r => !seen.has(r.id));
+    fresh.forEach(r => seen.add(r.id));
+    const latest = fresh[fresh.length - 1];
+    if (!latest?.audioUrl) return;
+    const audio = new Audio(latest.audioUrl);
+    setGlobalAiAudioPlaying(true);
+    const done = () => setGlobalAiAudioPlaying(false);
+    audio.onended = done;
+    audio.onerror = done;
+    audio.play().catch(done); // the browser may block it if the user hasn't interacted yet
+  }, [thoughts, loading, anonUserId]);
 
   const tutorialThought = useMemo<Thought | null>(() => {
     if (tutorialStep === 'none') return null;
@@ -752,6 +794,16 @@ export default function App() {
         onTriggerPanToStar={() => setPanToTarget({ x: 0, y: -80 })}
       />
       <ScreenGlow isPlaying={globalAiAudioPlaying} />
+      {notice && (
+        <div className={`fixed inset-0 z-[200] ${noticeVisible ? '' : 'pointer-events-none'}`}>
+          <SafeSpaceGuard
+            visible={noticeVisible}
+            severity={notice.severity}
+            message={notice.message}
+            onDismiss={() => setNoticeVisible(false)}
+          />
+        </div>
+      )}
       <AnimatePresence>
         {showOnboarding && (
           <Onboarding

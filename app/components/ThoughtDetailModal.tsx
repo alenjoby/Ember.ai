@@ -183,7 +183,9 @@ function NoteTab({ onSend }: { onSend: (text: string) => Promise<void> | void })
 type VoiceState = 'idle' | 'recording' | 'recorded';
 type Severity = 'mild' | 'severe';
 
-function VoiceTab({ onSend }: { onSend: (text: string, url: string) => void }) {
+const MAX_VOICE_SECONDS = 60; // server limit (and 2 MB)
+
+function VoiceTab({ onSend }: { onSend: (text: string, url: string, durationSec: number) => Promise<void> | void }) {
   const [loading, setLoading] = useState(false);
   const [showGuard, setShowGuard] = useState(false);
   const [guardMessage, setGuardMessage] = useState('');
@@ -205,6 +207,11 @@ function VoiceTab({ onSend }: { onSend: (text: string, url: string) => void }) {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [recordState]);
 
+  // Stop automatically at the limit instead of letting the server refuse a long recording.
+  useEffect(() => {
+    if (recordState === 'recording' && duration >= MAX_VOICE_SECONDS) stopRecording();
+  }, [duration, recordState]);
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -219,7 +226,9 @@ function VoiceTab({ onSend }: { onSend: (text: string, url: string) => void }) {
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        // Use the browser's real format (Safari records audio/mp4, not webm).
+        const mime = (mediaRecorder.mimeType || 'audio/webm').split(';')[0];
+        const audioBlob = new Blob(audioChunksRef.current, { type: mime });
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
@@ -252,11 +261,13 @@ function VoiceTab({ onSend }: { onSend: (text: string, url: string) => void }) {
     setLoading(true);
     try {
       const finalTranscript = `Voice message (${formatTime(duration)})`;
-      onSend(finalTranscript, recordedAudioUrl);
+      // The server needs the length (it used to treat a missing one as "too long").
+      await onSend(finalTranscript, recordedAudioUrl, Math.max(1, duration));
       setRecordState('idle');
       setDuration(0);
       setRecordedAudioUrl('');
     } catch (err) {
+      // Blocked or failed: keep the recording so the user can try again (App shows why).
       console.error('Audio send error:', err);
     } finally {
       setLoading(false);
@@ -769,12 +780,13 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
     responsesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [thought.responses.length]);
 
+  // Return the promise so the tabs can keep the user's note/recording if sending fails or is blocked.
   const handleSendNote = useCallback((text: string) => {
-    onAddResponse({ type: 'note', content: text });
+    return onAddResponse({ type: 'note', content: text });
   }, [onAddResponse]);
 
-  const handleSendVoice = useCallback((text: string, url: string) => {
-    onAddResponse({ type: 'voice', content: text, audioUrl: url });
+  const handleSendVoice = useCallback((text: string, url: string, durationSec: number) => {
+    return onAddResponse({ type: 'voice', content: text, audioUrl: url, durationSec });
   }, [onAddResponse]);
 
   const handleSendSticker = useCallback((emoji: string) => {
