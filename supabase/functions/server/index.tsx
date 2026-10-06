@@ -6,7 +6,6 @@ import { bodyLimit } from "npm:hono@4/body-limit";
 import { decodeBase64 } from "jsr:@std/encoding@1/base64";
 import {
   EMOTIONS,
-  liveFilter,
   pickPosition,
   removeMedia,
   type ReplyRow,
@@ -148,6 +147,12 @@ app.use(
   }),
 );
 
+// Any successful write clears the shared GET /thoughts cache (see below).
+app.use("*", async (c, next) => {
+  await next();
+  if (c.req.method !== "GET" && c.req.method !== "OPTIONS" && c.res.status < 300) invalidateThoughtsCache();
+});
+
 app.onError((err, c) => {
   console.error("[server] unhandled error:", err);
   return fail(c, 500, "internal", "Something went quiet on our side. Please try again.");
@@ -173,23 +178,59 @@ app.get("/health", async (c) => {
 // List thoughts (newest 200 visible, replies oldest first)
 // Only lanterns from the last 24 h (plus examples). With DEMO_MODE off, simulated thoughts and
 // replies (authorId demo_*) are hidden too. Nothing is deleted.
+//
+// Every write fires a realtime event and every open browser then refetches this list, so with
+// 100 people online one reply meant ~100 identical queries within a second. Responses are
+// shared for THOUGHTS_CACHE_MS per instance; writes handled by this instance clear it.
+const THOUGHTS_CACHE_MS = 2000;
+let thoughtsCache: { body: string; demo: boolean; at: number } | null = null;
+// Single-flight: requests that arrive while a query is running share it instead of each
+// starting their own (a burst of 100 all missed the empty cache at once).
+let thoughtsInFlight: { demo: boolean; promise: Promise<string> } | null = null;
+let thoughtsGeneration = 0;
+export function invalidateThoughtsCache() {
+  thoughtsCache = null;
+  thoughtsInFlight = null;
+  thoughtsGeneration++;
+}
+
 app.get("/thoughts", async (c) => {
+  const t0 = performance.now();
+  // Server-Timing / X-Cache: lets the browser devtools (and load tests) see server time vs network.
+  const timing = (cache: string) => ({
+    "Content-Type": "application/json",
+    "X-Cache": cache,
+    "Server-Timing": `app;dur=${(performance.now() - t0).toFixed(1)}`,
+  });
   const demo = await demoEnabled();
   if (demo) background("demoAutopilot", demoAutopilotTick());
-  let query = supabase
-    .from("thoughts")
-    .select("*, replies(*)")
-    .eq("hidden", false)
-    .or(liveFilter());
-  if (!demo) query = query.or("author_id.is.null,author_id.not.like.demo_*");
-  const { data, error } = await query.order("created_at", { ascending: false }).limit(200);
-  if (error) throw new Error(error.message);
-  let rows = data as ThoughtRow[];
-  if (!demo) {
-    rows = rows.map((t) => ({ ...t, replies: (t.replies ?? []).filter((r) => !r.author_id?.startsWith("demo_")) }));
+  if (thoughtsCache && thoughtsCache.demo === demo && Date.now() - thoughtsCache.at < THOUGHTS_CACHE_MS) {
+    return c.body(thoughtsCache.body, 200, timing("hit"));
   }
-  return c.json(rows.map(toThought));
+  const shared = !!thoughtsInFlight && thoughtsInFlight.demo === demo;
+  if (!shared) {
+    const generation = thoughtsGeneration;
+    const promise = loadThoughts(demo).then((body) => {
+      // Don't cache a result that a write made stale while it was loading.
+      if (generation === thoughtsGeneration) thoughtsCache = { body, demo, at: Date.now() };
+      return body;
+    }).finally(() => {
+      if (thoughtsInFlight?.promise === promise) thoughtsInFlight = null;
+    });
+    thoughtsInFlight = { demo, promise };
+  }
+  const body = await thoughtsInFlight!.promise;
+  return c.body(body, 200, timing(shared ? "shared" : "miss"));
 });
+
+// Same SQL function the browser calls directly (migration 20261006000000_get_feed.sql):
+// one query, and the API and the browser can never disagree about what's visible.
+// `demo` keys the cache; demoEnabled() (called first) has already synced app_settings.
+async function loadThoughts(_demo: boolean): Promise<string> {
+  const { data, error } = await supabase.rpc("get_feed");
+  if (error) throw new Error(error.message);
+  return JSON.stringify(data ?? []);
+}
 
 // Create a thought
 app.post("/thoughts", async (c) => {
@@ -425,8 +466,11 @@ app.post("/moderate", async (c) => {
 app.get("/helpline", (c) => c.json(helplineFor(c.req.query("country"))));
 
 // Demo mode: how many dummy people the frontend adds to its live online count
+// The browser reads the feed from the database directly, so while demo mode is on it polls
+// this endpoint (every 30 s) and that drives the autopilot instead of GET /thoughts.
 app.get("/demo", async (c) => {
   const enabled = await demoEnabled();
+  if (enabled) background("demoAutopilot", demoAutopilotTick());
   return c.json({ enabled, online: enabled ? demoOnline() : 0 });
 });
 

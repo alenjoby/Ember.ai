@@ -1,11 +1,18 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MainSpace } from './components/MainSpace';
-import { ComposeModal } from './components/ComposeModal';
-import { ThoughtDetailModal } from './components/ThoughtDetailModal';
-import { DrawModal } from './components/DrawModal';
-import { HistoryModal } from './components/HistoryModal';
-import { ReplyDetailModal } from './components/ReplyDetailModal';
+// Modals are split into their own chunks: the canvas renders first, modals load right after
+// (prefetched on idle below), so the first paint doesn't wait for code nobody has opened yet.
+const loadCompose = () => import('./components/ComposeModal');
+const loadThoughtDetail = () => import('./components/ThoughtDetailModal');
+const loadDraw = () => import('./components/DrawModal');
+const loadHistory = () => import('./components/HistoryModal');
+const loadReplyDetail = () => import('./components/ReplyDetailModal');
+const ComposeModal = lazy(() => loadCompose().then(m => ({ default: m.ComposeModal })));
+const ThoughtDetailModal = lazy(() => loadThoughtDetail().then(m => ({ default: m.ThoughtDetailModal })));
+const DrawModal = lazy(() => loadDraw().then(m => ({ default: m.DrawModal })));
+const HistoryModal = lazy(() => loadHistory().then(m => ({ default: m.HistoryModal })));
+const ReplyDetailModal = lazy(() => loadReplyDetail().then(m => ({ default: m.ReplyDetailModal })));
 import { projectId, publicAnonKey } from '../supabase/info';
 import { supabase } from './supabaseClient';
 import { ScreenGlow } from './components/ScreenGlow';
@@ -109,19 +116,39 @@ export default function App() {
     voiceCountRef.current = voiceCount;
   }, [voiceCount]);
 
+  // Prefetch the modal chunks once the canvas is up, so the first click opens instantly.
+  useEffect(() => {
+    const prefetch = () => { loadCompose(); loadThoughtDetail(); loadReplyDetail(); loadHistory(); loadDraw(); };
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
+    if (w.requestIdleCallback) w.requestIdleCallback(prefetch);
+    else setTimeout(prefetch, 1500);
+  }, []);
+
   // Demo mode: server says how many simulated people to add to the live count (0 when off)
   const [demoOnline, setDemoOnline] = useState(0);
   const [demoEnabled, setDemoEnabled] = useState<boolean | null>(null);
   useEffect(() => {
-    const loadDemo = () =>
-      fetch(`${SERVER_URL}/demo`, { headers: { apikey: publicAnonKey, Authorization: `Bearer ${publicAnonKey}` } })
-        .then(r => r.json())
-        .then(d => { setDemoOnline(d.online ?? 0); setDemoEnabled(!!d.enabled); })
-        .catch(() => {});
+    // While demo is on this check also drives the server's autopilot (the feed itself is read
+    // from the database), so it runs every 30 s; with demo off, every 5 min. Skipped in
+    // background tabs.
+    let lastCheck = 0;
+    const loadDemo = async () => {
+      if (document.hidden) return;
+      if (!demoEnabledRef.current && Date.now() - lastCheck < 5 * 60 * 1000) return;
+      lastCheck = Date.now();
+      try {
+        const d = await fetch(`${SERVER_URL}/demo`, { headers: { apikey: publicAnonKey, Authorization: `Bearer ${publicAnonKey}` } }).then(r => r.json());
+        setDemoOnline(d.online ?? 0);
+        setDemoEnabled(!!d.enabled);
+      } catch { /* keep last state */ }
+    };
     loadDemo();
-    const id = setInterval(loadDemo, 5 * 60 * 1000);
+    const id = setInterval(loadDemo, 30_000);
     return () => clearInterval(id);
   }, []);
+  // The admin button flips demoEnabled; the loop above follows it on its next 30 s tick.
+  const demoEnabledRef = useRef(false);
+  demoEnabledRef.current = !!demoEnabled;
 
 
   // Fetch thoughts — reads directly from the KV table to avoid edge function cold-start/EPIPE issues
@@ -224,18 +251,40 @@ export default function App() {
   useEffect(() => {
     fetchThoughts();
 
-    // Polling fallback: re-fetch every 10s in case Realtime silently fails
-    const pollInterval = setInterval(() => {
+    // Load at scale (100 people online): every write fires a realtime event to every browser.
+    // - Realtime refetches wait 300 ms plus a random 0–1.2 s, so browsers don't all hit the
+    //   server in the same instant.
+    // - Background tabs don't refetch at all; they catch up when they become visible again.
+    // - The poll is a safety net: every 10 s without realtime, every 30 s while it's connected.
+    let realtimeConnected = false;
+    let lastFetchAt = Date.now();
+    let missedWhileHidden = false;
+    const refetch = () => {
+      if (document.hidden) {
+        missedWhileHidden = true;
+        return;
+      }
+      lastFetchAt = Date.now();
       fetchThoughts();
+    };
+
+    const pollInterval = setInterval(() => {
+      const every = realtimeConnected ? 30000 : 10000;
+      if (Date.now() - lastFetchAt >= every - 500) refetch();
     }, 10000);
 
-    // Debounce timer for realtime refetches
+    const onVisible = () => {
+      if (!document.hidden && missedWhileHidden) {
+        missedWhileHidden = false;
+        refetch();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const triggerDebouncedFetch = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        fetchThoughts();
-      }, 300);
+      debounceTimer = setTimeout(refetch, 300 + Math.random() * 1200);
     };
 
     // Subscribe to thoughts and replies table changes (F1 spec)
@@ -251,7 +300,9 @@ export default function App() {
         { event: '*', schema: 'public', table: 'replies' },
         () => triggerDebouncedFetch()
       )
-      .subscribe();
+      .subscribe((status) => {
+        realtimeConnected = status === 'SUBSCRIBED';
+      });
 
     // Subscribe to presence
     const presenceChannel = supabase.channel('online-users');
@@ -280,6 +331,8 @@ export default function App() {
 
     return () => {
       clearInterval(pollInterval);
+      if (debounceTimer) clearTimeout(debounceTimer);
+      document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(channel);
       supabase.removeChannel(presenceChannel);
     };
@@ -673,7 +726,7 @@ export default function App() {
           />
         )}
       </AnimatePresence>
-      <AnimatePresence mode="wait">
+      <Suspense fallback={null}><AnimatePresence mode="wait">
         {activeView === 'compose' && (
           <ComposeModal
             key="compose"
@@ -711,7 +764,7 @@ export default function App() {
             onClose={handleCloseModal}
           />
         )}
-      </AnimatePresence>
+      </AnimatePresence></Suspense>
       <AnimatePresence>
         {tutorialStep === 'complete' && (
           <motion.div
@@ -758,7 +811,7 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
-      <AnimatePresence>
+      <Suspense fallback={null}><AnimatePresence>
         {showDrawModal && (
           <DrawModal
             key="draw"
@@ -766,7 +819,7 @@ export default function App() {
             onSend={handleSendDrawing}
           />
         )}
-      </AnimatePresence>
+      </AnimatePresence></Suspense>
 
       <AnimatePresence>
         {crisisHelpline && (

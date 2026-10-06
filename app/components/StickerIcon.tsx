@@ -1,4 +1,4 @@
-import imgStickerSheet from '../../assets/sticker-sheet.png';
+import imgStickerSheet from '../../assets/sticker-sheet.webp';
 
 // Sprite grid: 5 columns × 3 rows, each cell is 1/5 width and 1/3 height
 // Position expressed as [col, row] (0-indexed)
