@@ -365,9 +365,14 @@ app.post(
         if (!media || !VOICE_TYPES[media.mime]) {
           return fail(c, 400, "invalid_audio", "That recording didn't come through. Try again?");
         }
+        // A missing/invalid durationSec used to count as "too long" (NaN failed the check), which
+        // refused every voice note from a client that didn't send it. The 2 MB cap always applies.
         const duration = Number(body.durationSec);
-        if (media.bytes.length > MAX_VOICE_BYTES || !(duration <= MAX_VOICE_SECONDS + 1)) {
-          return fail(c, 413, "too_large", "That's a bit too long, try a shorter recording.");
+        if (media.bytes.length > MAX_VOICE_BYTES) {
+          return fail(c, 413, "too_large", "That recording is too big. Try one under a minute.");
+        }
+        if (Number.isFinite(duration) && duration > MAX_VOICE_SECONDS + 1) {
+          return fail(c, 413, "too_long", "That's a bit too long. Voice notes can be up to a minute.");
         }
         let verdict;
         try {

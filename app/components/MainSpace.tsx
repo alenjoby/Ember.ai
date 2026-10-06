@@ -91,6 +91,8 @@ const floatAnimationStyles = `
     0%, 100% { transform: translateY(0px); }
     50% { transform: translateY(-8px); }
   }
+  .lantern-offscreen { visibility: hidden; }
+  .lantern-offscreen * { animation-play-state: paused !important; }
   .animate-float-bob {
     animation: float-bob var(--float-duration, 5s) ease-in-out infinite;
     animation-delay: var(--float-delay, 0s);
@@ -213,6 +215,20 @@ const ThoughtCard = React.memo(function ThoughtCard({
   React.useLayoutEffect(() => {
     if (cardRef.current) cardRef.current.style.transform = baseTransform;
   }, [thought.x, thought.y, baseTransform]);
+
+  // Lanterns outside the viewport (plus a 200px margin) are hidden and their animations paused:
+  // with 100 lanterns most are off-screen, but their halo/flame/float/orbit kept running.
+  // Toggled straight on the DOM, no React render. Threads to them still draw.
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      ([entry]) => el.classList.toggle('lantern-offscreen', !entry.isIntersecting),
+      { rootMargin: '200px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -420,18 +436,14 @@ const StarCanvas = React.memo(function StarCanvas() {
       });
     }
 
-    let animId: number;
-    let lastTime = performance.now();
-
-    const draw = (now: number) => {
-      const dt = Math.min(now - lastTime, 100);
-      lastTime = now;
-
+    // Drawn ONCE. Redrawing this 4000x4000 canvas every frame (16M pixels, ~64 MB re-uploaded
+    // to the GPU per frame) was the single biggest per-frame cost on the canvas. The twinkle
+    // now comes from a few CSS-animated stars (TwinkleStars) that run on the compositor.
+    const draw = () => {
       ctx.clearRect(0, 0, width, height);
 
       for (let i = 0; i < starPoints.length; i++) {
         const p = starPoints[i];
-        p.phase += p.speed * dt;
         const alpha = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(p.phase));
 
         ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(2)})`;
@@ -455,30 +467,57 @@ const StarCanvas = React.memo(function StarCanvas() {
           ctx.fill();
         }
       }
-
-      animId = requestAnimationFrame(draw);
     };
 
-    animId = requestAnimationFrame(draw);
-
-    return () => {
-      cancelAnimationFrame(animId);
-    };
+    draw();
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="absolute pointer-events-none"
-      style={{
-        width: 4000,
-        height: 4000,
-        left: '50%',
-        top: '50%',
-        transform: 'translate(-50%, -50%)',
-      }}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        className="absolute pointer-events-none"
+        style={{
+          width: 4000,
+          height: 4000,
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+        }}
+      />
+      {TWINKLERS.map(s => (
+        <div
+          key={s.id}
+          className="absolute rounded-full bg-white animate-twinkle pointer-events-none"
+          style={{
+            left: s.x,
+            top: s.y,
+            width: s.size,
+            height: s.size,
+            '--twinkle-duration': s.duration,
+            '--twinkle-delay': s.delay,
+          } as React.CSSProperties}
+        />
+      ))}
+    </>
   );
+});
+
+// A few twinkling stars on top of the static canvas, around the area usually in view.
+// CSS opacity/transform animations run on the compositor (no per-frame JavaScript).
+const TWINKLERS = Array.from({ length: 70 }, (_, i) => {
+  const r = (s: number) => {
+    const x = Math.sin(s * 91.37 + i * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  return {
+    id: i,
+    x: Math.round(r(1) * 2600 - 1300),
+    y: Math.round(r(2) * 2600 - 1300),
+    size: r(3) < 0.2 ? 3 : 2,
+    duration: `${4 + r(4) * 5}s`,
+    delay: `${-r(5) * 6}s`,
+  };
 });
 
 
