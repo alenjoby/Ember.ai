@@ -1,5 +1,5 @@
 // Ember's background AI reply (spec Step 4). Honest: Ember is an AI and says so.
-import { supabase, uploadMedia } from "./db.ts";
+import { MEDIA_BUCKET, supabase, uploadMedia } from "./db.ts";
 import { fenced, generate } from "./llm.ts";
 import { takeTtsBudget } from "./rateLimit.ts";
 
@@ -122,6 +122,27 @@ export async function probeTts(): Promise<{ bytes?: number; ms?: number; error?:
   }
 }
 
+/**
+ * Demo mode voice: replies there are always one of the fixed canned texts above, so each is
+ * recorded once and reused from Storage (demo-voice/<sha256>.mp3). After the ~14 clips exist,
+ * demo mode makes no ElevenLabs calls at all. Returns null (text-only) if a clip can't be made.
+ */
+async function demoVoiceUrl(text: string): Promise<string | null> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  const name = [...new Uint8Array(digest)].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
+  const path = `demo-voice/${name}.mp3`;
+  const publicUrl = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path).data.publicUrl;
+
+  const head = await fetch(publicUrl, { method: "HEAD" }).catch(() => null);
+  if (head?.ok) return publicUrl;
+
+  const audio = await elevenLabsTts(text);
+  if (!audio) return null;
+  const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, audio, { contentType: "audio/mpeg", upsert: true });
+  if (error) throw new Error(`demo voice upload failed: ${error.message}`);
+  return publicUrl;
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Background task: wait, then reply as Ember unless a human answered first. Never throws. */
@@ -158,8 +179,12 @@ export async function scheduleAiReply(id: string, useLlm = true): Promise<void> 
   }
 
   try {
-    const audio = await elevenLabsTts(content);
-    if (audio) audioUrl = await uploadMedia(`ai/${crypto.randomUUID()}.mp3`, audio, "audio/mpeg");
+    if (useLlm) {
+      const audio = await elevenLabsTts(content);
+      if (audio) audioUrl = await uploadMedia(`ai/${crypto.randomUUID()}.mp3`, audio, "audio/mpeg");
+    } else {
+      audioUrl = await demoVoiceUrl(content);
+    }
   } catch (err) {
     console.warn("[aiReply] TTS failed, text-only:", (err as Error).message);
   }
