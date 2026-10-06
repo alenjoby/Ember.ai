@@ -25,7 +25,9 @@ export function aiConfigured(): boolean {
 
 // Tried in order: on overload (503), rate limit (429), retired model (404), 5xx or timeout,
 // the next model gets the remaining time budget. Override with GEMINI_MODELS (comma-separated).
-const DEFAULT_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash"];
+// 3.6-flash first: in repeated probes (Oct 6) it answered every time in 1.5–8 s, while the newer
+// 3.8/3.7-flash mostly returned 503 "high demand". 2.5-flash(-lite) are retired for new keys (404).
+const DEFAULT_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash"];
 
 function models(): string[] {
   const env = Deno.env.get("GEMINI_MODELS") ?? Deno.env.get("GEMINI_MODEL");
@@ -50,7 +52,8 @@ async function callModel(model: string, apiKey: string, parts: Part[], opts: Gen
   };
   if (opts.json) generationConfig.responseMimeType = "application/json";
   // Flash models: skip "thinking" for latency; these are short, simple tasks.
-  if (model.includes("flash")) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  // Flash models: skip "thinking" for latency. Lite models reject this setting (400), so leave it off there.
+  if (model.includes("flash") && !model.includes("lite")) generationConfig.thinkingConfig = { thinkingBudget: 0 };
 
   let res: Response;
   try {
@@ -203,6 +206,25 @@ export function parseJsonLoose(text: string): unknown {
 export function fenced(userText: string): string {
   const safe = userText.replace(/<<<|>>>/g, "");
   return `<<<USER_MESSAGE\n${safe}\nUSER_MESSAGE>>>`;
+}
+
+/** Health probe: one tiny call to each Gemini model, with timings (voice/drawing checks use Gemini). */
+export async function probeGemini(only?: string[]): Promise<Record<string, { ms?: number; error?: string }>> {
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) return { gemini: { error: "GEMINI_API_KEY not set" } };
+  const out: Record<string, { ms?: number; error?: string }> = {};
+  // Optional ?models=a,b to try candidates (gemini-* names only) before configuring them.
+  const list = only?.length ? only.filter((m) => /^gemini-[\w.-]+$/.test(m)).slice(0, 8) : models();
+  for (const model of list) {
+    const t0 = Date.now();
+    try {
+      await callModel(model, apiKey, [{ text: 'Return JSON only: {"ok": true}' }], { json: true, timeoutMs: 20000 }, 20000);
+      out[model] = { ms: Date.now() - t0 };
+    } catch (err) {
+      out[model] = { ms: Date.now() - t0, error: (err as Error).message.slice(0, 160) };
+    }
+  }
+  return out;
 }
 
 export function bytesToBase64(bytes: Uint8Array): string {

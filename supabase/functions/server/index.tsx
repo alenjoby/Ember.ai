@@ -17,7 +17,7 @@ import {
   VARIANTS,
 } from "./db.ts";
 import { helplineFor } from "./helplines.ts";
-import { AiUnavailableError, aiConfigured, generate, probeFeatherless } from "./llm.ts";
+import { AiUnavailableError, aiConfigured, generate, probeFeatherless, probeGemini } from "./llm.ts";
 import { moderateImage, moderateText, moderateVoice, VoiceUnclearError } from "./moderation.ts";
 import { detectNegativity } from "./safeSpace.ts";
 import { isRateLimited } from "./rateLimit.ts";
@@ -165,6 +165,9 @@ app.get("/health", async (c) => {
   if (!aiConfigured()) return c.json({ ok: true, ai: "down" });
   if (c.req.query("deep") === "featherless") return c.json({ ok: true, featherless: await probeFeatherless() });
   if (c.req.query("deep") === "tts") return c.json({ ok: true, tts: await probeTts() });
+  if (c.req.query("deep") === "gemini") {
+    return c.json({ ok: true, gemini: await probeGemini(c.req.query("models")?.split(",")) });
+  }
   if (c.req.query("deep") !== "1") return c.json({ ok: true, ai: "up" });
   const t0 = Date.now();
   try {
