@@ -16,12 +16,27 @@ export function demoKilled(): boolean {
 }
 
 export async function demoEnabled(): Promise<boolean> {
-  if (demoKilled()) return false;
   if (demoCache && Date.now() - demoCache.at < 5000) return demoCache.value;
-  const { data, error } = await supabase.from("app_settings").select("value").eq("key", "demo_mode").maybeSingle();
+  const { data, error } = await supabase.from("app_settings").select("key, value").in("key", ["demo_mode", "thought_ttl_hours"]);
   if (error) console.warn("[demo] settings read failed:", error.message);
-  const value = typeof data?.value === "boolean" ? data.value : Deno.env.get("DEMO_MODE") === "true";
+  const stored = (key: string) => data?.find((r) => r.key === key)?.value;
+  const dbDemo = stored("demo_mode");
+  const value = demoKilled() ? false : typeof dbDemo === "boolean" ? dbDemo : Deno.env.get("DEMO_MODE") === "true";
   demoCache = { value, at: Date.now() };
+
+  // The browser reads the feed via the get_feed() SQL function, which only sees app_settings.
+  // Keep it in sync with the effective values here (secrets win), so one switch rules both.
+  if (!error) {
+    const ttl = Number(Deno.env.get("THOUGHT_TTL_HOURS") ?? 24);
+    const updates = [];
+    if (dbDemo !== value) updates.push({ key: "demo_mode", value });
+    if (stored("thought_ttl_hours") !== ttl) updates.push({ key: "thought_ttl_hours", value: ttl });
+    if (updates.length) {
+      const now = new Date().toISOString();
+      const { error: upErr } = await supabase.from("app_settings").upsert(updates.map((u) => ({ ...u, updated_at: now })));
+      if (upErr) console.warn("[demo] settings sync failed:", upErr.message);
+    }
+  }
   return value;
 }
 

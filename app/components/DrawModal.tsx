@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PenTool, Brush, Eraser, Undo2, Redo2, Trash2, Send, Smile, Shield } from 'lucide-react';
 import { StickerIcon } from './StickerIcon';
-import imgStickerSheet from '../../assets/sticker-sheet.png';
+import imgStickerSheet from '../../assets/sticker-sheet.webp';
 
 // Sprite: 5 cols × 3 rows
 const STICKER_SPRITE_POS: Record<string, [number, number]> = {

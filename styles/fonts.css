@@ -1,1 +1,2 @@
-@import url('https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,700;1,400&family=Alegreya+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap');
+/* Fonts (Alegreya, Alegreya Sans) are loaded from index.html with preconnect, not @import here:
+   an @import inside the bundled CSS made the browser find them only after downloading the CSS. */

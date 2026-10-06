@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import * as Tone from 'tone';
+// Tone.js is ~1/3 of the app bundle: load it only when sound is actually turned on.
+import type * as ToneTypes from 'tone';
 import type { Lantern } from '../types';
 
 // Musical scale degrees for chord construction based on key
@@ -18,9 +19,10 @@ const KEY_FREQUENCIES: Record<string, string[]> = {
  * Adheres strictly to browser autoplay policies and sound toggle state.
  */
 export function useLanternSound(lantern: Lantern | null, soundEnabled: boolean) {
-  const synthRef = useRef<Tone.PolySynth | null>(null);
-  const noiseRef = useRef<Tone.Noise | Tone.MetalSynth | null>(null);
-  const filterRef = useRef<Tone.Filter | null>(null);
+  const synthRef = useRef<ToneTypes.PolySynth | null>(null);
+  const noiseRef = useRef<ToneTypes.Noise | null>(null);
+  const filterRef = useRef<ToneTypes.Filter | null>(null);
+  const chimeRef = useRef<{ synth: ToneTypes.MetalSynth; interval: ReturnType<typeof setInterval> } | null>(null);
 
   useEffect(() => {
     if (!lantern || !soundEnabled) {
@@ -32,6 +34,8 @@ export function useLanternSound(lantern: Lantern | null, soundEnabled: boolean) 
 
     const startSoundscape = async () => {
       try {
+        const Tone = await import('tone');
+        if (!isMounted) return;
         if (Tone.context.state !== 'running') {
           await Tone.start();
         }
@@ -86,8 +90,8 @@ export function useLanternSound(lantern: Lantern | null, soundEnabled: boolean) 
             if (!isMounted) return;
             metal.triggerAttackRelease('C6', '8n');
           }, 3500);
-
-          return () => clearInterval(interval);
+          // Was returned from this async function, where nobody cleared it: one leaked timer per opened lantern.
+          chimeRef.current = { synth: metal, interval };
         }
       } catch (err) {
         console.warn('Tone.js audio start deferred or blocked:', err);
@@ -117,6 +121,11 @@ export function useLanternSound(lantern: Lantern | null, soundEnabled: boolean) 
       if (filterRef.current) {
         filterRef.current.dispose();
         filterRef.current = null;
+      }
+      if (chimeRef.current) {
+        clearInterval(chimeRef.current.interval);
+        chimeRef.current.synth.dispose();
+        chimeRef.current = null;
       }
     } catch (e) {
       // Audio cleanup
