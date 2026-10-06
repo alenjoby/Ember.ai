@@ -1,0 +1,17 @@
+{
+  "name": "ember-film",
+  "private": true,
+  "description": "Ember.ai demo film in Remotion: motion graphics + real app recordings from ../out.",
+  "scripts": {
+    "clips": "node copy-clips.mjs",
+    "studio": "npm run clips && remotion studio src/index.ts",
+    "render": "npm run clips && remotion render src/index.ts EmberFilm out/ember-film.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "@remotion/google-fonts": "^4.0.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "^4.0.0"
+  }
+}

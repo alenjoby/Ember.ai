@@ -200,8 +200,13 @@ const SCENES = {
       await sleep(5000);
       const reply = await waitForEmber(id);
       await saveVoice(reply, '03-release');
+      // The server has Ember's reply; reload so the app surely shows it (a first take opened the
+      // lantern before the app had refreshed and showed "Be the first to respond").
+      await page.reload();
+      await page.getByLabel('Share a thought').waitFor({ timeout: 30000 });
+      await sleep(2500);
       await page.getByText(text).first().click({ force: true, timeout: 5000 });
-      await sleep(7000);
+      await sleep(8000);
     });
   },
 

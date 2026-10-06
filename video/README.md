@@ -28,3 +28,26 @@ for scenes that have one. Playwright records picture only: add the voice and mus
 The page runs with `?video=1`: only the test lanterns and thoughts released by the script are shown
 (never real people's posts), with realistic texts and no dev buttons or FPS banner. `release` and
 `crisis` post real thoughts (small AI cost) and delete them again at the end of the scene.
+
+## The film (Remotion)
+
+`video/film/` is a ~2 min Remotion film that follows the film prompt: hook → problem → logo →
+the real recordings from `video/out/` in framed windows with captions → crisis scene (with Ember's
+real voice) → "lanterns fade after 24h" → proof points → close with helplines.
+
+```bash
+cd video/film
+npm install
+npm run studio     # live preview + timeline in the browser
+npm run render     # → video/film/out/ember-film.mp4
+```
+
+- Record the app clips first (`npm run record` in `video/`); `npm run clips` copies them into `public/`.
+- If Remotion can't download its headless browser, add
+  `--browser-executable="C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"` to the render command.
+- Everything animates from `useCurrentFrame()` (Remotion renders frame by frame), so the lanterns in
+  the film use their own frame-driven `Lantern` in `src/ui.tsx`, not the app's CSS-animated one.
+- Picture + Ember's voice only: add music in Remotion (`<Audio>`) or in your editor.
+- The two statistics (loneliness 1 in 6, 700,000+ suicides a year, WHO) should be checked against
+  WHO's current pages before publishing.
+- Remotion is free for individuals and small teams (≤3 people); see remotion.dev/license.
