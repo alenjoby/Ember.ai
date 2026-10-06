@@ -283,7 +283,7 @@ app.post("/thoughts", async (c) => {
   }
 
   background("lantern", generateLantern(row.id, text, emotion as string | null, verdict.isCrisis, useLlm));
-  background("aiReply", scheduleAiReply(row.id, useLlm));
+  background("aiReply", scheduleAiReply(row.id, useLlm, verdict.isCrisis));
   // Demo video only: simulated peers. Never on crisis thoughts.
   if (!verdict.isCrisis && !useLlm) background("demo", scheduleDemoReplies(row.id, emotion as string | null));
 
@@ -334,7 +334,7 @@ app.post(
 
     const { data: thought } = await supabase
       .from("thoughts")
-      .select("id, ai_status, author_id, hidden")
+      .select("id, ai_status, author_id, hidden, show_help")
       .eq("id", thoughtId)
       .maybeSingle();
     if (!thought || thought.hidden) return fail(c, 404, "not_found", "That thought is no longer here.");
@@ -428,8 +428,9 @@ app.post(
       throw err;
     }
 
-    // A human (other than the author) answered: Ember stays quiet.
-    if (thought.ai_status === "waiting" && (!authorId || authorId !== thought.author_id)) {
+    // A human (other than the author) answered: Ember stays quiet. Never for crisis messages:
+    // Ember's calming reply always comes.
+    if (thought.ai_status === "waiting" && !thought.show_help && (!authorId || authorId !== thought.author_id)) {
       await supabase.from("thoughts").update({ ai_status: "skipped" }).eq("id", thoughtId).eq("ai_status", "waiting");
     }
 
