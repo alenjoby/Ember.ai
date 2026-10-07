@@ -58,7 +58,7 @@ Social media asks you to perform: profiles, likes, followers. We wanted the oppo
 | **Express ideas** | Anonymous, no profiles or likes, so people can express what they never say out loud, in whatever form fits: words, voice or a drawing. |
 | **Experience art and media** | The sky is a living audiovisual space: you explore it, hear each lantern's soundscape and watch it change as feelings arrive and fade after 24 hours. |
 
-### Safety, built in
+## Safety, built in
 
 - **Moderation on the server for everything:** text (rules + AI), voice notes (transcribed and checked), and drawings (image check). Hate and harassment are blocked with a gentle message; pain is always welcome.
 - **Crisis care:** messages that sound like a crisis are never blocked or silenced. The writer immediately sees a warning card with the right helpline for their country, a guided breathing exercise and a list of international helplines, and Ember's calming reply arrives right away.
