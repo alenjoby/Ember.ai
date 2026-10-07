@@ -2,3 +2,4 @@ out/
 frames/
 node_modules/
 *.zip
+.env
