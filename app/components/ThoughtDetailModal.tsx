@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Feather, Mic, Brush, Sparkles, Loader2, Heart,
-  Leaf, Trash2, Shield
+  Leaf, Trash2, Shield, Download, Check
 } from 'lucide-react';
 import type { Thought, ThoughtResponse } from '../App';
 import { ScreenGlow } from './ScreenGlow';
@@ -22,6 +22,7 @@ interface Props {
   onOpenDraw: () => void;
   onDeleteThought?: (id: string) => void;
   onDeleteReply?: (thoughtId: string, replyId: string) => void;
+  onThankReply?: (thoughtId: string, reply: ThoughtResponse) => void;
   tutorialStep?: 'none' | 'hud' | 'star' | 'reply' | 'complete';
 }
 
@@ -464,9 +465,50 @@ function StickerTab({ onSend }: { onSend: (iconName: string) => void }) {
   );
 }
 
-function VoicePlayer({ response, isAI, timeStr, onDeleteReply }: { response: ThoughtResponse; isAI?: boolean; timeStr: string; onDeleteReply?: (id: string) => void }) {
+function VoicePlayer({
+  response,
+  isAI,
+  timeStr,
+  thought,
+  onDeleteReply,
+  onThankReply,
+}: {
+  response: ThoughtResponse;
+  isAI?: boolean;
+  timeStr: string;
+  thought: Thought;
+  onDeleteReply?: (id: string) => void;
+  onThankReply?: (thoughtId: string, reply: ThoughtResponse) => void;
+}) {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isThanked, setIsThanked] = useState(() => {
+    try {
+      const thanked = JSON.parse(localStorage.getItem('ember_thanked_replies') || '[]');
+      return Array.isArray(thanked) && thanked.includes(response.id);
+    } catch {
+      return false;
+    }
+  });
+  const [showThanks, setShowThanks] = useState(false);
+
+  const handleThank = () => {
+    if (isThanked) return;
+    setIsThanked(true);
+    setShowThanks(true);
+    setTimeout(() => setShowThanks(false), 2000);
+    try {
+      const raw = localStorage.getItem('ember_thanked_replies');
+      const list = raw ? JSON.parse(raw) : [];
+      if (!list.includes(response.id)) {
+        list.push(response.id);
+        localStorage.setItem('ember_thanked_replies', JSON.stringify(list));
+      }
+    } catch {}
+    if (onThankReply) {
+      onThankReply(thought.id, response);
+    }
+  };
 
   const togglePlay = () => {
     if (!response.audioUrl) return;
@@ -577,21 +619,78 @@ function VoicePlayer({ response, isAI, timeStr, onDeleteReply }: { response: Tho
             <span style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
               {timeStr}
             </span>
+            {!isAI && (
+              <button
+                onClick={handleThank}
+                disabled={isThanked}
+                className="flex items-center gap-1 text-[#D66A3E] hover:text-[#bd5e37] transition-colors focus:outline-none cursor-pointer p-0.5"
+                title={isThanked ? "Thanked" : "Send Thanks"}
+              >
+                <Heart size={12} fill={isThanked || showThanks ? "#D66A3E" : "none"} />
+              </button>
+            )}
           </div>
+          {/* Floating Heart Animation */}
+          <AnimatePresence>
+            {showThanks && (
+              <motion.div
+                initial={{ opacity: 0, y: 0, scale: 0.5 }}
+                animate={{ opacity: [0, 1, 0], y: -26, scale: 1.4 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1 }}
+                className="absolute right-0 bottom-4 pointer-events-none text-[#D66A3E]"
+              >
+                <Heart size={15} fill="#D66A3E" />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </>
   );
 }
 
-function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtResponse; index: number; onDeleteReply?: (replyId: string) => void }) {
+function ResponseItem({
+  response,
+  index,
+  thought,
+  onDeleteReply,
+  onThankReply,
+}: {
+  response: ThoughtResponse;
+  index: number;
+  thought: Thought;
+  onDeleteReply?: (replyId: string) => void;
+  onThankReply?: (thoughtId: string, reply: ThoughtResponse) => void;
+}) {
   const timeStr = relativeTime(response.timestamp);
   const isAI = response.isAI;
+  const [isThanked, setIsThanked] = useState(() => {
+    try {
+      const thanked = JSON.parse(localStorage.getItem('ember_thanked_replies') || '[]');
+      return Array.isArray(thanked) && thanked.includes(response.id);
+    } catch {
+      return false;
+    }
+  });
   const [showThanks, setShowThanks] = useState(false);
 
   const handleThank = () => {
+    if (isThanked) return;
+    setIsThanked(true);
     setShowThanks(true);
     setTimeout(() => setShowThanks(false), 2000);
+    try {
+      const raw = localStorage.getItem('ember_thanked_replies');
+      const list = raw ? JSON.parse(raw) : [];
+      if (!list.includes(response.id)) {
+        list.push(response.id);
+        localStorage.setItem('ember_thanked_replies', JSON.stringify(list));
+      }
+    } catch {}
+    if (onThankReply) {
+      onThankReply(thought.id, response);
+    }
   };
 
   const wrapper = (children: React.ReactNode) => (
@@ -630,10 +729,11 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
             {!isAI && (
               <button
                 onClick={handleThank}
+                disabled={isThanked}
                 className="flex items-center gap-1 text-[#D66A3E] hover:text-[#bd5e37] transition-colors focus:outline-none cursor-pointer"
-                title="Send Thanks"
+                title={isThanked ? "Thanked" : "Send Thanks"}
               >
-                <Heart size={13} fill={showThanks ? "#D66A3E" : "none"} />
+                <Heart size={13} fill={isThanked || showThanks ? "#D66A3E" : "none"} />
               </button>
             )}
           </div>
@@ -666,7 +766,7 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
             className="max-h-[180px] w-auto object-contain drop-shadow-md"
           />
         </div>
-        <div className="flex items-center justify-between text-[11px] text-[#8a7f79]">
+        <div className="flex items-center justify-between text-[11px] text-[#8a7f79] relative">
           <span className="font-bold" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
             {isAI ? <AiLabel /> : 'someone drew this'}
           </span>
@@ -681,7 +781,31 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
                 <Trash2 size={12} />
               </button>
             )}
+            {!isAI && (
+              <button
+                onClick={handleThank}
+                disabled={isThanked}
+                className="flex items-center gap-1 text-[#D66A3E] hover:text-[#bd5e37] transition-colors focus:outline-none cursor-pointer ml-1"
+                title={isThanked ? "Thanked" : "Send Thanks"}
+              >
+                <Heart size={12} fill={isThanked || showThanks ? "#D66A3E" : "none"} />
+              </button>
+            )}
           </div>
+          {/* Floating Heart Animation */}
+          <AnimatePresence>
+            {showThanks && (
+              <motion.div
+                initial={{ opacity: 0, y: 0, scale: 0.5 }}
+                animate={{ opacity: [0, 1, 0], y: -26, scale: 1.4 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1 }}
+                className="absolute right-0 bottom-4 pointer-events-none text-[#D66A3E]"
+              >
+                <Heart size={15} fill="#D66A3E" />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     );
@@ -689,7 +813,14 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
 
   if (response.type === 'voice') {
     return wrapper(
-      <VoicePlayer response={response} isAI={isAI} timeStr={timeStr} onDeleteReply={onDeleteReply} />
+      <VoicePlayer
+        response={response}
+        isAI={isAI}
+        timeStr={timeStr}
+        thought={thought}
+        onDeleteReply={onDeleteReply}
+        onThankReply={onThankReply}
+      />
     );
   }
 
@@ -733,10 +864,11 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
           {!isAI && (
             <button
               onClick={handleThank}
+              disabled={isThanked}
               className="flex items-center gap-1 text-[#D66A3E] hover:text-[#bd5e37] transition-colors focus:outline-none cursor-pointer"
-              title="Send Thanks"
+              title={isThanked ? "Thanked" : "Send Thanks"}
             >
-              <Heart size={12} fill={showThanks ? "#D66A3E" : "none"} />
+              <Heart size={12} fill={isThanked || showThanks ? "#D66A3E" : "none"} />
             </button>
           )}
         </div>
@@ -759,12 +891,249 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
   );
 }
 
-export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddResponse, onOpenDraw, onDeleteThought, onDeleteReply, tutorialStep = 'none' }: Props) {
+function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+}
+
+async function exportQuoteCard(thought: Thought) {
+  if (typeof document !== 'undefined' && document.fonts) {
+    try {
+      await document.fonts.ready;
+    } catch {
+      // Font loading fallback
+    }
+  }
+
+  const canvas = document.createElement('canvas');
+  const size = 1080;
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  // 1. Deep Celestial Background
+  const bgGrad = ctx.createLinearGradient(0, 0, size, size);
+  bgGrad.addColorStop(0, '#0a0612');
+  bgGrad.addColorStop(0.5, '#120a1f');
+  bgGrad.addColorStop(1, '#1b0e2b');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, size, size);
+
+  // 2. Radial Lantern Glow
+  const glowColor = thought.lantern?.palette?.[0] || '#D66A3E';
+  const glowGrad = ctx.createRadialGradient(size * 0.5, size * 0.44, 30, size * 0.5, size * 0.44, size * 0.6);
+  glowGrad.addColorStop(0, `${glowColor}38`);
+  glowGrad.addColorStop(0.5, `${glowColor}15`);
+  glowGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = glowGrad;
+  ctx.fillRect(0, 0, size, size);
+
+  // 3. Subtle background stars / specks
+  ctx.save();
+  for (let i = 0; i < 54; i++) {
+    const sx = ((i * 197 + 43) % size);
+    const sy = ((i * 311 + 89) % size);
+    const sr = (i % 4 === 0) ? 1.8 : 1.0;
+    const sa = 0.15 + ((i % 5) * 0.12);
+    ctx.fillStyle = `rgba(255, 245, 230, ${sa})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // 4. Elegant Card Border Frame with Rounded Corners
+  const pad = 64;
+  const cardRadius = 36;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+  ctx.lineWidth = 1.5;
+  drawRoundRect(ctx, pad, pad, size - pad * 2, size - pad * 2, cardRadius);
+  ctx.stroke();
+
+  // Inner accent line
+  ctx.strokeStyle = `${glowColor}28`;
+  ctx.lineWidth = 1;
+  drawRoundRect(ctx, pad + 14, pad + 14, size - (pad + 14) * 2, size - (pad + 14) * 2, cardRadius - 8);
+  ctx.stroke();
+  ctx.restore();
+
+  // 5. Header: Ember Logo Mark & Emotion Pill
+  ctx.save();
+  ctx.fillStyle = '#D66A3E';
+  ctx.font = '24px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('✦', size * 0.5, pad + 72);
+
+  ctx.fillStyle = '#f5efe6';
+  ctx.font = '700 21px "Alegreya Sans", sans-serif';
+  ctx.fillText('E M B E R', size * 0.5, pad + 110);
+
+  if (thought.emotion) {
+    const emotionText = `${thought.emotion.toUpperCase()} · ${(thought.lantern?.shape || 'lantern').toUpperCase()}`;
+    ctx.fillStyle = '#D66A3E';
+    ctx.font = '600 13px "Alegreya Sans", sans-serif';
+    ctx.fillText(emotionText, size * 0.5, pad + 138);
+  }
+  ctx.restore();
+
+  // 6. Center: Decorative quote mark & Thought text
+  ctx.save();
+  ctx.fillStyle = `${glowColor}30`;
+  ctx.font = 'italic 110px "Alegreya", serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('“', size * 0.5, pad + 245);
+  ctx.restore();
+
+  // Smart word wrap for thought text
+  ctx.save();
+  ctx.fillStyle = '#fffcf9';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+
+  const text = thought.text.trim();
+  let fontSize = 38;
+  let lineHeight = 54;
+  if (text.length > 250) {
+    fontSize = 26;
+    lineHeight = 38;
+  } else if (text.length > 140) {
+    fontSize = 32;
+    lineHeight = 46;
+  } else if (text.length < 60) {
+    fontSize = 44;
+    lineHeight = 62;
+  }
+  ctx.font = `400 ${fontSize}px "Alegreya", Georgia, serif`;
+
+  const maxWidth = size - pad * 2 - 130;
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const testWidth = ctx.measureText(testLine).width;
+    if (testWidth > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+
+  const aiReply = thought.responses.find(r => r.isAI && r.content);
+  const totalTextHeight = lines.length * lineHeight;
+  let startY = Math.max(pad + 265, (size * 0.48) - (totalTextHeight * 0.5) - (aiReply ? 45 : 0));
+
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], size * 0.5, startY + (i * lineHeight));
+  }
+  ctx.restore();
+
+  // If there's an Ember reply, render an elegant ember whisper box
+  if (aiReply) {
+    ctx.save();
+    const replyY = startY + totalTextHeight + 42;
+    if (replyY < size - pad - 140) {
+      // Small divider
+      ctx.strokeStyle = 'rgba(214, 106, 62, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(size * 0.5 - 60, replyY);
+      ctx.lineTo(size * 0.5 + 60, replyY);
+      ctx.stroke();
+
+      // Ember whisper
+      ctx.fillStyle = '#ffb380';
+      ctx.font = 'italic 400 20px "Alegreya", Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      const replyWords = aiReply.content.split(/\s+/);
+      const replyLines: string[] = [];
+      let curReply = '';
+      for (const w of replyWords) {
+        const test = curReply ? `${curReply} ${w}` : w;
+        if (ctx.measureText(test).width > maxWidth - 60 && curReply) {
+          replyLines.push(curReply);
+          curReply = w;
+        } else {
+          curReply = test;
+        }
+      }
+      if (curReply) replyLines.push(curReply);
+
+      const shownReplyLines = replyLines.slice(0, 3);
+      for (let j = 0; j < shownReplyLines.length; j++) {
+        const lineText = (j === 0 ? '✦ Ember: ' : '') + shownReplyLines[j] + (j === 2 && replyLines.length > 3 ? '...' : '');
+        ctx.fillText(lineText, size * 0.5, replyY + 22 + (j * 28));
+      }
+    }
+    ctx.restore();
+  }
+
+  // 7. Footer:
+  ctx.save();
+  const footerY = size - pad - 42;
+  ctx.fillStyle = 'rgba(235, 226, 218, 0.55)';
+  ctx.font = '400 15px "Alegreya Sans", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Every whisper finds light', pad + 36, footerY);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(214, 106, 62, 0.85)';
+  ctx.font = '500 15px "Alegreya Sans", sans-serif';
+  ctx.fillText('ember.ai', size - pad - 36, footerY);
+  ctx.restore();
+
+  // 8. Trigger Download
+  const dataUrl = canvas.toDataURL('image/png');
+  const link = document.createElement('a');
+  link.download = `ember-whisper-${thought.id.slice(0, 8)}.png`;
+  link.href = dataUrl;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddResponse, onOpenDraw, onDeleteThought, onDeleteReply, onThankReply, tutorialStep = 'none' }: Props) {
   const [mode, setMode] = useState<ResponseMode>(tutorialStep === 'reply' ? 'sticker' : 'note');
   const [sentSticker, setSentSticker] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [hasSavedCard, setHasSavedCard] = useState(false);
   const responsesEndRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [showHugPulse, setShowHugPulse] = useState(false);
+
+  const handleExportCard = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      await exportQuoteCard(thought);
+      setHasSavedCard(true);
+      setTimeout(() => setHasSavedCard(false), 2200);
+    } catch (e) {
+      console.error('Failed to export quote card:', e);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const sameFeelingCount = useMemo(() => {
     if (!allThoughts || !thought.emotion) return 0;
@@ -848,6 +1217,35 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Save Card / Download Button */}
+            <motion.button
+              onClick={handleExportCard}
+              disabled={isExporting}
+              aria-label="Save shareable quote card"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-[#e8e2dd] hover:text-white transition-all cursor-pointer shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] text-[12px] font-medium"
+              style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Save shareable quote card"
+            >
+              {hasSavedCard ? (
+                <>
+                  <Check size={13} className="text-emerald-400" />
+                  <span className="text-emerald-400 font-semibold">Saved</span>
+                </>
+              ) : isExporting ? (
+                <>
+                  <Loader2 size={13} className="animate-spin text-[#D66A3E]" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={13} className="text-[#D66A3E]" />
+                  <span>Save card</span>
+                </>
+              )}
+            </motion.button>
+
             {/* Delete thought button (visible to author OR admin) */}
             {(thought.authorId === localStorage.getItem('anon_user_id') || localStorage.getItem('ember_admin') === 'true') && onDeleteThought && (
               <motion.button
@@ -1017,7 +1415,14 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
             ) : (
               <div className="flex flex-col gap-2.5 max-w-full">
                 {thought.responses.map((r, i) => (
-                  <ResponseItem key={r.id} response={r} index={i} onDeleteReply={(replyId) => onDeleteReply && onDeleteReply(thought.id, replyId)} />
+                  <ResponseItem
+                    key={r.id}
+                    response={r}
+                    index={i}
+                    thought={thought}
+                    onDeleteReply={(replyId) => onDeleteReply && onDeleteReply(thought.id, replyId)}
+                    onThankReply={onThankReply}
+                  />
                 ))}
                 <div ref={responsesEndRef} />
               </div>

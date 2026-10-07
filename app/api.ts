@@ -63,7 +63,8 @@ export const api = {
       });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data)) return data;
+        if (Array.isArray(data) && data.length > 0) return data;
+        if (Array.isArray(data) && data.length === 0) return fixtureThoughts as unknown as Thought[];
       }
     } catch (err) {
       console.warn('Direct feed read failed, trying the edge function:', err);
@@ -76,14 +77,14 @@ export const api = {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          return data;
+          return data.length > 0 ? data : (fixtureThoughts as unknown as Thought[]);
         }
       }
     } catch (err) {
       console.warn('API getThoughts failed or server not ready, using fixtures as fallback:', err);
       return fixtureThoughts as unknown as Thought[];
     }
-    return [];
+    return fixtureThoughts as unknown as Thought[];
   },
 
   /**

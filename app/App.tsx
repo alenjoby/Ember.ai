@@ -154,6 +154,7 @@ export default function App() {
     }
   }, []);
   const [activeToast, setActiveToast] = useState<ActiveToastData | null>(null);
+  const [notAloneNotice, setNotAloneNotice] = useState<{ count: number; emotion: string } | null>(null);
   const [hasUnreadNotification, setHasUnreadNotification] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [panToTarget, setPanToTarget] = useState<{ x: number; y: number } | null>(null);
@@ -542,14 +543,35 @@ export default function App() {
         }
       });
 
+    // Subscribe to thank-you warmth broadcast events
+    const warmthChannel = supabase.channel('ember-warmth');
+    warmthChannel
+      .on('broadcast', { event: 'thank-you' }, ({ payload }: any) => {
+        if (!payload) return;
+        if (payload.targetAuthorId && payload.targetAuthorId === anonUserId) {
+          playNotificationChime();
+          setHasUnreadNotification(true);
+          const t = thoughtsRef.current.find(item => item.id === payload.thoughtId);
+          triggerToast({
+            id: `thank-${payload.replyId || Date.now()}`,
+            thought: t || ({ id: payload.thoughtId, text: 'Your whisper', responses: [] } as any),
+            title: '✦ Your words helped someone',
+            subtitle: 'The author sent you a thank-you heart for your whisper',
+            isAI: false,
+          });
+        }
+      })
+      .subscribe();
+
     return () => {
       clearInterval(pollInterval);
       if (debounceTimer) clearTimeout(debounceTimer);
       document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(channel);
       supabase.removeChannel(presenceChannel);
+      supabase.removeChannel(warmthChannel);
     };
-  }, [fetchThoughts]);
+  }, [fetchThoughts, anonUserId, triggerToast]);
 
   const handleToastClick = useCallback((thought: Thought) => {
     if (toastTimerRef.current) {
@@ -725,6 +747,15 @@ export default function App() {
         setThoughts(prev => [...prev.filter(t => t.id !== created.id), created]);
         setActiveView('space');
 
+        const emo = emotion || res.thought.emotion;
+        if (emo) {
+          const sameFeelingCount = thoughtsRef.current.filter(t => t.emotion === emo && t.id !== created.id).length;
+          setNotAloneNotice({ count: sameFeelingCount, emotion: emo });
+          setTimeout(() => {
+            setNotAloneNotice(null);
+          }, 7000);
+        }
+
         if (res.helpline) {
           setCrisisHelpline(res.helpline);
         }
@@ -837,6 +868,41 @@ export default function App() {
     }
     setShowDrawModal(false);
   }, [selectedThought, handleAddResponse]);
+
+  const handleThankReply = useCallback((thoughtId: string, reply: ThoughtResponse) => {
+    // 1. Broadcast thank-you warmth event to other clients
+    try {
+      const warmthChannel = supabase.channel('ember-warmth');
+      warmthChannel.send({
+        type: 'broadcast',
+        event: 'thank-you',
+        payload: {
+          thoughtId,
+          replyId: reply.id,
+          targetAuthorId: reply.authorId,
+          content: reply.content || 'your whisper',
+        },
+      });
+    } catch (e) {
+      console.warn('Realtime warmth broadcast error:', e);
+    }
+
+    // 2. Play gentle chime and trigger positive feedback toast
+    playNotificationChime();
+    const targetThought = thoughtsRef.current.find(t => t.id === thoughtId) || ({
+      id: thoughtId,
+      text: 'Your whisper',
+      responses: [],
+    } as any);
+
+    triggerToast({
+      id: `thank-${reply.id}-${Date.now()}`,
+      thought: targetThought,
+      title: '✦ Your words helped someone',
+      subtitle: 'The author sent you a thank-you heart for your whisper',
+      isAI: false,
+    });
+  }, [triggerToast]);
 
   // Auto-play Ember's voice reply once when it arrives on one of YOUR thoughts.
   // Replies already there when the page loaded are only marked as seen (no surprise audio).
@@ -1069,6 +1135,7 @@ export default function App() {
             onOpenDraw={() => setShowDrawModal(true)}
             onDeleteThought={handleDeleteThought}
             onDeleteReply={handleDeleteReply}
+            onThankReply={handleThankReply}
             tutorialStep={tutorialStep}
           />
         )}
@@ -1201,6 +1268,26 @@ export default function App() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* "You're not alone" quiet line after release */}
+      <AnimatePresence>
+        {notAloneNotice && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 15, scale: 0.95 }}
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed bottom-24 sm:bottom-28 left-1/2 -translate-x-1/2 z-[140] pointer-events-none px-5 py-2.5 rounded-full bg-[rgba(16,12,22,0.94)] backdrop-blur-2xl border border-[rgba(214,106,62,0.4)] shadow-[0_12px_40px_rgba(0,0,0,0.8),_0_0_25px_rgba(214,106,62,0.2)] flex items-center gap-2.5 max-w-[90vw]"
+          >
+            <span className="w-2 h-2 rounded-full bg-[#D66A3E] animate-ping shrink-0" />
+            <p className="text-[#f9f3eb] text-[13.5px] sm:text-[14.5px] font-medium tracking-wide whitespace-nowrap truncate" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
+              {notAloneNotice.count > 0 
+                ? `You're not alone · ${notAloneNotice.count} other${notAloneNotice.count === 1 ? '' : 's'} felt ${notAloneNotice.emotion} tonight`
+                : `Your lantern carries light for others feeling ${notAloneNotice.emotion} tonight`}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

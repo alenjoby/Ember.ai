@@ -18,6 +18,7 @@ const EMOTION_ICONS: Record<string, React.ElementType> = {
   joyful: Sparkles,
 };
 import { STICKER_DATA } from './stickersData';
+import { useSkyAmbientSound } from './useLanternSound';
 
 interface MainSpaceProps {
   thoughts: Thought[];
@@ -544,21 +545,12 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showEmptyState, setShowEmptyState] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('ember_sound') === 'on');
+  useSkyAmbientSound(soundEnabled);
 
-  const toggleSound = async () => {
+  const toggleSound = () => {
     const nextState = !soundEnabled;
     setSoundEnabled(nextState);
     localStorage.setItem('ember_sound', nextState ? 'on' : 'off');
-    if (nextState) {
-      try {
-        const Tone = await import('tone');
-        if (Tone.context.state !== 'running') {
-          await Tone.start();
-        }
-      } catch (err) {
-        console.warn('Tone.start failed on user toggle:', err);
-      }
-    }
   };
   const handleLogoDoubleClick = async () => {
     if (localStorage.getItem("ember_admin") === "true") {

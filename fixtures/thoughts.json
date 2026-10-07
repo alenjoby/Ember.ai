@@ -1,36 +1,36 @@
 [
   {
-    "id": "thought_1",
+    "id": "thought_example_1",
     "text": "I moved to a new city three weeks ago. My apartment is completely quiet and I haven't heard my own voice out loud today.",
     "timestamp": "2026-10-05T08:30:00.000Z",
     "rotation": -1.5,
-    "x": 480,
-    "y": 320,
-    "width": 310,
+    "x": -380,
+    "y": -260,
+    "width": 300,
     "variant": "teal",
     "emotion": "lonely",
-    "authorId": "user_demo_1",
+    "authorId": "user_seed_1",
     "responses": [
       {
-        "id": "reply_1_1",
+        "id": "reply_ex_1_1",
         "type": "note",
         "content": "The first month in a new place is the quietest mountain to climb. You are making roots even when it feels like drifting.",
         "timestamp": "2026-10-05T08:45:00.000Z",
         "isAI": false,
-        "authorId": "user_demo_2"
+        "authorId": "user_seed_2"
       },
       {
-        "id": "reply_1_2",
+        "id": "reply_ex_1_2",
         "type": "sticker",
         "content": "sticker_hug",
         "timestamp": "2026-10-05T09:02:00.000Z",
         "isAI": false,
-        "authorId": "user_demo_3"
+        "authorId": "user_seed_3"
       },
       {
-        "id": "reply_1_3",
+        "id": "reply_ex_1_3",
         "type": "note",
-        "content": "I hear you. The silence can feel heavy, but this quiet space holds you until you find your rhythm.",
+        "content": "The silence can feel heavy, but this quiet space holds you until you find your rhythm. You are not alone tonight.",
         "timestamp": "2026-10-05T09:15:00.000Z",
         "isAI": true
       }
@@ -41,44 +41,39 @@
       "glow": 0.85,
       "flicker": 0.35,
       "shape": "tall",
-      "sound": {
-        "mood": "night",
-        "instrument": "pad",
-        "key": "D minor",
-        "tempo": 52
-      },
-      "caption": "quiet rain at 3am"
+      "sound": { "mood": "night", "instrument": "pad", "key": "D minor", "tempo": 52 },
+      "caption": "quiet rain at midnight"
     },
     "showHelp": false,
     "isExample": true
   },
   {
-    "id": "thought_2",
-    "text": "My grandmother taught me how to fold paper cranes when I was little. Today I folded one for her from an old receipt.",
+    "id": "thought_example_2",
+    "text": "My grandmother taught me how to fold paper cranes when I was little. Today I folded one for her from an old grocery receipt.",
     "timestamp": "2026-10-05T09:10:00.000Z",
     "rotation": 2.1,
-    "x": 920,
-    "y": 240,
+    "x": 420,
+    "y": -310,
     "width": 290,
     "variant": "warm",
     "emotion": "grateful",
-    "authorId": "user_demo_4",
+    "authorId": "user_seed_4",
     "responses": [
       {
-        "id": "reply_2_1",
+        "id": "reply_ex_2_1",
         "type": "note",
         "content": "Those little rituals stay forever. She folds them with you in spirit.",
         "timestamp": "2026-10-05T09:25:00.000Z",
         "isAI": false,
-        "authorId": "user_demo_5"
+        "authorId": "user_seed_5"
       },
       {
-        "id": "reply_2_2",
+        "id": "reply_ex_2_2",
         "type": "sticker",
         "content": "sticker_heart",
         "timestamp": "2026-10-05T09:30:00.000Z",
         "isAI": false,
-        "authorId": "user_demo_6"
+        "authorId": "user_seed_6"
       }
     ],
     "aiStatus": "done",
@@ -87,145 +82,391 @@
       "glow": 0.95,
       "flicker": 0.45,
       "shape": "round",
-      "sound": {
-        "mood": "chimes",
-        "instrument": "bells",
-        "key": "G major",
-        "tempo": 64
-      },
+      "sound": { "mood": "chimes", "instrument": "bells", "key": "G major", "tempo": 64 },
       "caption": "paper cranes and golden tea"
     },
     "showHelp": false,
     "isExample": true
   },
   {
-    "id": "thought_3",
-    "text": "My chest feels tight and my thoughts are running faster than I can breathe. Trying to ground myself.",
+    "id": "thought_example_3",
+    "text": "Waiting for test results tomorrow morning. My chest feels tight and my mind keeps preparing for storms that haven't arrived.",
     "timestamp": "2026-10-05T10:00:00.000Z",
     "rotation": -0.8,
-    "x": 310,
-    "y": 660,
-    "width": 300,
-    "variant": "light",
+    "x": -540,
+    "y": 180,
+    "width": 310,
+    "variant": "lavender",
     "emotion": "anxious",
-    "authorId": "user_demo_7",
+    "authorId": "user_seed_7",
     "responses": [
       {
-        "id": "reply_3_1",
+        "id": "reply_ex_3_1",
         "type": "note",
-        "content": "Inhale for 4, hold for 4, exhale for 6. You are safe right where you are right now.",
-        "timestamp": "2026-10-05T10:05:00.000Z",
+        "content": "Take one slow breath in with me. You do not have to live tomorrow tonight.",
+        "timestamp": "2026-10-05T10:14:00.000Z",
         "isAI": false,
-        "authorId": "user_demo_8"
-      }
-    ],
-    "aiStatus": "replying",
-    "lantern": {
-      "palette": ["#a78bfa", "#6366f1", "#1e1b4b"],
-      "glow": 0.75,
-      "flicker": 0.65,
-      "shape": "paper",
-      "sound": {
-        "mood": "wind",
-        "instrument": "piano",
-        "key": "A minor",
-        "tempo": 48
+        "authorId": "user_seed_8"
       },
-      "caption": "slow tides in the chest"
-    },
-    "showHelp": false,
-    "isExample": true
-  },
-  {
-    "id": "thought_4",
-    "text": "Everything feels so overwhelmingly heavy tonight. I don't know how to keep carrying all of this alone.",
-    "timestamp": "2026-10-05T10:20:00.000Z",
-    "rotation": 1.2,
-    "x": 750,
-    "y": 620,
-    "width": 320,
-    "variant": "rose",
-    "emotion": "grieving",
-    "authorId": "user_demo_9",
-    "responses": [
       {
-        "id": "reply_4_1",
+        "id": "reply_ex_3_2",
         "type": "note",
-        "content": "Please know your existence is deeply precious. Please reach out to someone who can listen tonight.",
-        "timestamp": "2026-10-05T10:25:00.000Z",
-        "isAI": false,
-        "authorId": "user_demo_10"
+        "content": "Your mind is trying so hard to protect you. It is okay to set the shield down for just ten minutes and rest.",
+        "timestamp": "2026-10-05T10:20:00.000Z",
+        "isAI": true
       }
     ],
     "aiStatus": "done",
     "lantern": {
-      "palette": ["#fda4af", "#e11d48", "#4c0519"],
-      "glow": 0.7,
-      "flicker": 0.25,
-      "shape": "tall",
-      "sound": {
-        "mood": "ocean",
-        "instrument": "cello",
-        "key": "C minor",
-        "tempo": 42
-      },
-      "caption": "carrying tender waters"
-    },
-    "showHelp": true,
-    "isExample": true
-  },
-  {
-    "id": "thought_5",
-    "text": "I finally stood up for myself in a meeting today after months of staying silent. My hands shook, but I did it.",
-    "timestamp": "2026-10-05T11:00:00.000Z",
-    "rotation": -2.0,
-    "x": 1200,
-    "y": 480,
-    "width": 300,
-    "variant": "warm",
-    "emotion": "hopeful",
-    "authorId": "user_demo_11",
-    "responses": [
-      {
-        "id": "reply_5_1",
-        "type": "sticker",
-        "content": "sticker_sparkle",
-        "timestamp": "2026-10-05T11:05:00.000Z",
-        "isAI": false,
-        "authorId": "user_demo_12"
-      }
-    ],
-    "aiStatus": "waiting",
-    "lantern": {
-      "palette": ["#fde047", "#fbbf24", "#78350f"],
-      "glow": 0.9,
-      "flicker": 0.5,
-      "shape": "star",
-      "sound": {
-        "mood": "birds",
-        "instrument": "flute",
-        "key": "E major",
-        "tempo": 72
-      },
-      "caption": "quiet courage finding voice"
+      "palette": ["#c084fc", "#7e22ce", "#3b0764"],
+      "glow": 0.75,
+      "flicker": 0.55,
+      "shape": "diamond",
+      "sound": { "mood": "wind", "instrument": "synth", "key": "A minor", "tempo": 48 },
+      "caption": "a quiet breath in the dark"
     },
     "showHelp": false,
     "isExample": true
   },
   {
-    "id": "thought_6",
-    "text": "Just lit a lavender candle and watched the sunset turn the sky into peach and violet. Pure gentle peace.",
-    "timestamp": "2026-10-05T11:30:00.000Z",
-    "rotation": 0.5,
-    "x": 1100,
-    "y": 800,
-    "width": 280,
-    "variant": "teal",
+    "id": "thought_example_4",
+    "text": "Watered the little fiddle-leaf fig tree I thought was completely dead. Today a tiny bright green leaf broke through the dry soil.",
+    "timestamp": "2026-10-05T11:20:00.000Z",
+    "rotation": 1.4,
+    "x": 220,
+    "y": 340,
+    "width": 295,
+    "variant": "amber",
+    "emotion": "hopeful",
+    "authorId": "user_seed_9",
+    "responses": [
+      {
+        "id": "reply_ex_4_1",
+        "type": "note",
+        "content": "Life waits quietly under the dirt. What a gentle little reminder for both of you.",
+        "timestamp": "2026-10-05T11:35:00.000Z",
+        "isAI": false,
+        "authorId": "user_seed_10"
+      },
+      {
+        "id": "reply_ex_4_2",
+        "type": "sticker",
+        "content": "sticker_leaf",
+        "timestamp": "2026-10-05T11:42:00.000Z",
+        "isAI": false,
+        "authorId": "user_seed_11"
+      }
+    ],
+    "aiStatus": "done",
+    "lantern": {
+      "palette": ["#fbbf24", "#d97706", "#78350f"],
+      "glow": 0.9,
+      "flicker": 0.25,
+      "shape": "paper",
+      "sound": { "mood": "ocean", "instrument": "kalimba", "key": "E major", "tempo": 58 },
+      "caption": "morning light on a new leaf"
+    },
+    "showHelp": false,
+    "isExample": true
+  },
+  {
+    "id": "thought_example_5",
+    "text": "It has been one year since my father passed away. I still find myself looking for him in the vegetable garden every Sunday afternoon.",
+    "timestamp": "2026-10-05T12:05:00.000Z",
+    "rotation": -2.3,
+    "x": -160,
+    "y": -450,
+    "width": 315,
+    "variant": "indigo",
+    "emotion": "grieving",
+    "authorId": "user_seed_12",
+    "responses": [
+      {
+        "id": "reply_ex_5_1",
+        "type": "note",
+        "content": "Love doesn't vanish just because someone leaves. It lives in every plant he tended and every Sunday you remember.",
+        "timestamp": "2026-10-05T12:20:00.000Z",
+        "isAI": false,
+        "authorId": "user_seed_13"
+      },
+      {
+        "id": "reply_ex_5_2",
+        "type": "note",
+        "content": "Missing him this tenderly is proof of how deeply he loved you. This little flame stays lit for him tonight.",
+        "timestamp": "2026-10-05T12:30:00.000Z",
+        "isAI": true
+      }
+    ],
+    "aiStatus": "done",
+    "lantern": {
+      "palette": ["#818cf8", "#4338ca", "#1e1b4b"],
+      "glow": 0.8,
+      "flicker": 0.3,
+      "shape": "tall",
+      "sound": { "mood": "night", "instrument": "pad", "key": "C minor", "tempo": 44 },
+      "caption": "lavender and Sunday soil"
+    },
+    "showHelp": false,
+    "isExample": true
+  },
+  {
+    "id": "thought_example_6",
+    "text": "After months of doubting myself, I finally hit send on my manuscript draft today! My hands were trembling, but I did it.",
+    "timestamp": "2026-10-05T13:40:00.000Z",
+    "rotation": 1.8,
+    "x": 580,
+    "y": 120,
+    "width": 300,
+    "variant": "rose",
     "emotion": "joyful",
-    "authorId": "user_demo_13",
-    "responses": [],
-    "aiStatus": "waiting",
-    "lantern": null,
+    "authorId": "user_seed_14",
+    "responses": [
+      {
+        "id": "reply_ex_6_1",
+        "type": "note",
+        "content": "Huge congratulations! Sending bravery across the sky. You poured your heart out and that is everything.",
+        "timestamp": "2026-10-05T13:55:00.000Z",
+        "isAI": false,
+        "authorId": "user_seed_15"
+      },
+      {
+        "id": "reply_ex_6_2",
+        "type": "sticker",
+        "content": "sticker_sparkle",
+        "timestamp": "2026-10-05T14:10:00.000Z",
+        "isAI": false,
+        "authorId": "user_seed_16"
+      }
+    ],
+    "aiStatus": "done",
+    "lantern": {
+      "palette": ["#fb7185", "#e11d48", "#881337"],
+      "glow": 1.0,
+      "flicker": 0.4,
+      "shape": "round",
+      "sound": { "mood": "chimes", "instrument": "harp", "key": "F major", "tempo": 72 },
+      "caption": "first page written by candlelight"
+    },
+    "showHelp": false,
+    "isExample": true
+  },
+  {
+    "id": "thought_example_7",
+    "text": "Sitting on the train watching everyone tap their screens. Sometimes it feels like we are all surrounded by a thousand people and yet completely solitary.",
+    "timestamp": "2026-10-05T14:15:00.000Z",
+    "rotation": -1.1,
+    "x": -240,
+    "y": 380,
+    "width": 305,
+    "variant": "teal",
+    "emotion": "lonely",
+    "authorId": "user_seed_17",
+    "responses": [
+      {
+        "id": "reply_ex_7_1",
+        "type": "note",
+        "content": "I feel that same train solitude every commute. Look up next time — someone is probably looking for a friendly face too.",
+        "timestamp": "2026-10-05T14:30:00.000Z",
+        "isAI": false,
+        "authorId": "user_seed_18"
+      }
+    ],
+    "aiStatus": "done",
+    "lantern": {
+      "palette": ["#38bdf8", "#0284c7", "#0c4a6e"],
+      "glow": 0.78,
+      "flicker": 0.32,
+      "shape": "paper",
+      "sound": { "mood": "night", "instrument": "pad", "key": "D minor", "tempo": 50 },
+      "caption": "windows on the evening train"
+    },
+    "showHelp": false,
+    "isExample": true
+  },
+  {
+    "id": "thought_example_8",
+    "text": "The barista remembered my name and drew a tiny smiling sun on the coffee lid. It carried me through an entire ten-hour shift.",
+    "timestamp": "2026-10-05T15:00:00.000Z",
+    "rotation": 2.6,
+    "x": -620,
+    "y": -120,
+    "width": 290,
+    "variant": "warm",
+    "emotion": "grateful",
+    "authorId": "user_seed_19",
+    "responses": [
+      {
+        "id": "reply_ex_8_1",
+        "type": "note",
+        "content": "Tiny kindnesses are the real glue that holds the world together. Beautiful.",
+        "timestamp": "2026-10-05T15:15:00.000Z",
+        "isAI": false,
+        "authorId": "user_seed_20"
+      }
+    ],
+    "aiStatus": "done",
+    "lantern": {
+      "palette": ["#fef08a", "#eab308", "#854d0e"],
+      "glow": 0.92,
+      "flicker": 0.28,
+      "shape": "diamond",
+      "sound": { "mood": "chimes", "instrument": "bells", "key": "G major", "tempo": 60 },
+      "caption": "steaming coffee on a cold porch"
+    },
+    "showHelp": false,
+    "isExample": true
+  },
+  {
+    "id": "thought_example_9",
+    "text": "Starting a new job tomorrow after six months out of work. Terrified that I'll forget everything on day one.",
+    "timestamp": "2026-10-05T15:50:00.000Z",
+    "rotation": -0.6,
+    "x": 140,
+    "y": -190,
+    "width": 300,
+    "variant": "lavender",
+    "emotion": "anxious",
+    "authorId": "user_seed_21",
+    "responses": [
+      {
+        "id": "reply_ex_9_1",
+        "type": "note",
+        "content": "They hired you because of who you are, not because you memorized everything. You'll do wonderful.",
+        "timestamp": "2026-10-05T16:05:00.000Z",
+        "isAI": false,
+        "authorId": "user_seed_22"
+      },
+      {
+        "id": "reply_ex_9_2",
+        "type": "note",
+        "content": "Nerves just mean you care. Walk in, breathe slowly, and take it one hour at a time.",
+        "timestamp": "2026-10-05T16:20:00.000Z",
+        "isAI": true
+      }
+    ],
+    "aiStatus": "done",
+    "lantern": {
+      "palette": ["#e879f9", "#a21caf", "#4a044e"],
+      "glow": 0.82,
+      "flicker": 0.42,
+      "shape": "tall",
+      "sound": { "mood": "wind", "instrument": "synth", "key": "A minor", "tempo": 54 },
+      "caption": "quiet desk before sunrise"
+    },
+    "showHelp": false,
+    "isExample": true
+  },
+  {
+    "id": "thought_example_10",
+    "text": "Applied for the community grant today. Even if we don't get selected, this was the first time our little neighborhood came together to dream.",
+    "timestamp": "2026-10-05T16:40:00.000Z",
+    "rotation": 1.2,
+    "x": 490,
+    "y": -90,
+    "width": 310,
+    "variant": "amber",
+    "emotion": "hopeful",
+    "authorId": "user_seed_23",
+    "responses": [
+      {
+        "id": "reply_ex_10_1",
+        "type": "note",
+        "content": "The dream itself changes the soil. Rooting for you and your community!",
+        "timestamp": "2026-10-05T16:55:00.000Z",
+        "isAI": false,
+        "authorId": "user_seed_24"
+      }
+    ],
+    "aiStatus": "done",
+    "lantern": {
+      "palette": ["#fcd34d", "#b45309", "#451a03"],
+      "glow": 0.88,
+      "flicker": 0.38,
+      "shape": "round",
+      "sound": { "mood": "ocean", "instrument": "kalimba", "key": "E major", "tempo": 62 },
+      "caption": "warm streetlights on brick walls"
+    },
+    "showHelp": false,
+    "isExample": true
+  },
+  {
+    "id": "thought_example_11",
+    "text": "Found my late mother's handwritten recipe card for apple spice cake tucked inside an old cookbook. The handwriting is so familiar it stopped my breath.",
+    "timestamp": "2026-10-05T17:10:00.000Z",
+    "rotation": -1.9,
+    "x": -80,
+    "y": 160,
+    "width": 315,
+    "variant": "indigo",
+    "emotion": "grieving",
+    "authorId": "user_seed_25",
+    "responses": [
+      {
+        "id": "reply_ex_11_1",
+        "type": "note",
+        "content": "Bake it this weekend. The scent of cinnamon and nutmeg is like a hug from across time.",
+        "timestamp": "2026-10-05T17:25:00.000Z",
+        "isAI": false,
+        "authorId": "user_seed_26"
+      },
+      {
+        "id": "reply_ex_11_2",
+        "type": "note",
+        "content": "Ink carries a person's rhythm long after they rest. What a precious treasure to uncover.",
+        "timestamp": "2026-10-05T17:35:00.000Z",
+        "isAI": true
+      }
+    ],
+    "aiStatus": "done",
+    "lantern": {
+      "palette": ["#a5b4fc", "#4f46e5", "#312e81"],
+      "glow": 0.84,
+      "flicker": 0.34,
+      "shape": "paper",
+      "sound": { "mood": "night", "instrument": "pad", "key": "C minor", "tempo": 46 },
+      "caption": "cinnamon and yellowed parchment"
+    },
+    "showHelp": false,
+    "isExample": true
+  },
+  {
+    "id": "thought_example_12",
+    "text": "My seven-year-old sister told me today that my laugh is her favorite song in the whole world. I’m going to hold that close on heavy days.",
+    "timestamp": "2026-10-05T18:00:00.000Z",
+    "rotation": 2.2,
+    "x": -420,
+    "y": 520,
+    "width": 295,
+    "variant": "rose",
+    "emotion": "joyful",
+    "authorId": "user_seed_27",
+    "responses": [
+      {
+        "id": "reply_ex_12_1",
+        "type": "note",
+        "content": "Kids see right to the heart of what matters. Never let that laughter fade.",
+        "timestamp": "2026-10-05T18:15:00.000Z",
+        "isAI": false,
+        "authorId": "user_seed_28"
+      },
+      {
+        "id": "reply_ex_12_2",
+        "type": "sticker",
+        "content": "sticker_heart",
+        "timestamp": "2026-10-05T18:22:00.000Z",
+        "isAI": false,
+        "authorId": "user_seed_29"
+      }
+    ],
+    "aiStatus": "done",
+    "lantern": {
+      "palette": ["#fda4af", "#f43f5e", "#9f1239"],
+      "glow": 0.96,
+      "flicker": 0.36,
+      "shape": "round",
+      "sound": { "mood": "chimes", "instrument": "harp", "key": "F major", "tempo": 68 },
+      "caption": "laughter echoing in the yard"
+    },
     "showHelp": false,
     "isExample": true
   }
