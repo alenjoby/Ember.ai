@@ -65,7 +65,7 @@ const Turn: React.FC = () => {
           <Lantern id="turn" palette={['#FFD9A8', '#F08A4B', '#7A2E12']} shape="paper" size={1.5} glow={0.8} lit={lit} />
         </div>
         <div style={{ position: 'absolute', bottom: 150, textAlign: 'center', opacity: logo, transform: `translateY(${(1 - logo) * 20}px)` }}>
-          <div style={{ fontFamily: serif, fontSize: 120, color: C.cream, textShadow: `0 0 60px ${C.ember}88` }}>
+          <div style={{ fontFamily: serif, fontWeight: 600, letterSpacing: '-0.02em', fontSize: 120, color: C.cream, textShadow: `0 0 60px ${C.ember}88` }}>
             Ember<span style={{ color: C.ember }}>.ai</span>
           </div>
           <div style={{ fontFamily: serif, fontSize: 38, color: C.muted, fontStyle: 'italic' }}>Release what you feel. Someone will answer.</div>
@@ -191,7 +191,7 @@ const Close: React.FC = () => {
         <Line at={s(0.5)}><Title size={58}>Tonight, someone is still awake.</Title></Line>
         <Line at={s(2.3)}><Title size={58} style={{ color: C.ember }}>Now, they don't have to be alone with it.</Title></Line>
         <div style={{ marginTop: 50, opacity: logo, textAlign: 'center' }}>
-          <div style={{ fontFamily: serif, fontSize: 96, color: C.cream, textShadow: `0 0 60px ${C.ember}88` }}>
+          <div style={{ fontFamily: serif, fontWeight: 600, letterSpacing: '-0.02em', fontSize: 96, color: C.cream, textShadow: `0 0 60px ${C.ember}88` }}>
             Ember<span style={{ color: C.ember }}>.ai</span>
           </div>
           <div style={{ fontFamily: sans, fontSize: 26, color: C.muted, maxWidth: 1300, margin: '0 auto' }}>

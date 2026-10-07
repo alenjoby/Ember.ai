@@ -2,11 +2,14 @@
 // frame by frame, so CSS keyframe animations would not render smoothly).
 import React from 'react';
 import { AbsoluteFill, interpolate, OffthreadVideo, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
-import { loadFont as loadSerif } from '@remotion/google-fonts/Alegreya';
-import { loadFont as loadSans } from '@remotion/google-fonts/AlegreyaSans';
+import { loadFont as loadSerif } from '@remotion/google-fonts/Fraunces';
+import { loadFont as loadSans } from '@remotion/google-fonts/Outfit';
 
-export const serif = loadSerif().fontFamily;
-export const sans = loadSans().fontFamily;
+// Fraunces: warm, expressive display serif for the statements. Outfit: clean geometric sans
+// for labels and captions.
+export const serif = loadSerif('normal', { weights: ['300', '400', '600'], subsets: ['latin'] }).fontFamily;
+loadSerif('italic', { weights: ['300', '400'], subsets: ['latin'] });
+export const sans = loadSans('normal', { weights: ['300', '400', '500', '600'], subsets: ['latin'] }).fontFamily;
 
 export const C = {
   bg0: '#241611',
@@ -121,7 +124,10 @@ export const Lantern: React.FC<{
 
 /** Big serif statement. */
 export const Title: React.FC<{ children: React.ReactNode; size?: number; style?: React.CSSProperties }> = ({ children, size = 64, style }) => (
-  <div style={{ fontFamily: serif, color: C.cream, fontSize: size, lineHeight: 1.25, textAlign: 'center', textShadow: '0 4px 30px rgba(0,0,0,0.6)', ...style }}>
+  <div style={{
+    fontFamily: serif, fontWeight: 400, letterSpacing: '-0.015em', color: C.cream, fontSize: size, lineHeight: 1.2,
+    textAlign: 'center', textShadow: '0 4px 30px rgba(0,0,0,0.6)', ...style,
+  }}>
     {children}
   </div>
 );
@@ -141,7 +147,7 @@ export const AppClip: React.FC<{
       <Sky dim={0.6} />
       <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'flex-start', paddingTop: 70 }}>
         <div style={{
-          fontFamily: sans, fontSize: 26, letterSpacing: 4, textTransform: 'uppercase', color: C.ember, marginBottom: 18,
+          fontFamily: sans, fontWeight: 500, fontSize: 26, letterSpacing: 5, textTransform: 'uppercase', color: C.ember, marginBottom: 18,
           opacity: enter,
         }}>
           {label}
