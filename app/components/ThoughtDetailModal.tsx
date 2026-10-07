@@ -10,6 +10,7 @@ import { StickerIcon as BaseStickerIcon } from './StickerIcon';
 import { detectNegativity, getVoiceReminder } from '../safeSpace';
 import { SafeSpaceGuard, SafeSpaceInline } from './SafeSpaceGuard';
 import { SendingStatus } from './SendingStatus';
+import { getOwnerToken } from '../api';
 import { AiLabel } from './AiLabel';
 import { CrisisCard } from './CrisisCard';
 import { useLanternSound } from './useLanternSound';
@@ -22,7 +23,7 @@ interface Props {
   onOpenDraw: () => void;
   onDeleteThought?: (id: string) => void;
   onDeleteReply?: (thoughtId: string, replyId: string) => void;
-  onThankReply?: (thoughtId: string, reply: ThoughtResponse) => void;
+  onThankReply?: (thoughtId: string, reply: ThoughtResponse) => Promise<boolean> | void;
   tutorialStep?: 'none' | 'hud' | 'star' | 'reply' | 'complete';
 }
 
@@ -478,25 +479,33 @@ function VoicePlayer({
   timeStr: string;
   thought: Thought;
   onDeleteReply?: (id: string) => void;
-  onThankReply?: (thoughtId: string, reply: ThoughtResponse) => void;
+  onThankReply?: (thoughtId: string, reply: ThoughtResponse) => Promise<boolean> | void;
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isThanked, setIsThanked] = useState(() => {
     try {
       const thanked = JSON.parse(localStorage.getItem('ember_thanked_replies') || '[]');
-      return Array.isArray(thanked) && thanked.includes(response.id);
+      return !!response.thanked || (Array.isArray(thanked) && thanked.includes(response.id));
     } catch {
-      return false;
+      return !!response.thanked;
     }
   });
   const [showThanks, setShowThanks] = useState(false);
+  useEffect(() => { if (response.thanked) setIsThanked(true); }, [response.thanked]);
+  // Only the lantern's author can thank (the server checks too), and not their own replies.
+  const canThank = !!getOwnerToken(thought.id) && !(response.authorId && response.authorId === thought.authorId);
 
-  const handleThank = () => {
-    if (isThanked) return;
+  const handleThank = async () => {
+    if (isThanked || !canThank) return;
     setIsThanked(true);
     setShowThanks(true);
     setTimeout(() => setShowThanks(false), 2000);
+    const ok = onThankReply ? await onThankReply(thought.id, response) : true;
+    if (ok === false) {
+      setIsThanked(false); // not sent: let them try again
+      return;
+    }
     try {
       const raw = localStorage.getItem('ember_thanked_replies');
       const list = raw ? JSON.parse(raw) : [];
@@ -505,9 +514,6 @@ function VoicePlayer({
         localStorage.setItem('ember_thanked_replies', JSON.stringify(list));
       }
     } catch {}
-    if (onThankReply) {
-      onThankReply(thought.id, response);
-    }
   };
 
   const togglePlay = () => {
@@ -619,12 +625,12 @@ function VoicePlayer({
             <span style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
               {timeStr}
             </span>
-            {!isAI && (
+            {!isAI && (canThank || isThanked) && (
               <button
                 onClick={handleThank}
                 disabled={isThanked}
                 className="flex items-center gap-1 text-[#D66A3E] hover:text-[#bd5e37] transition-colors focus:outline-none cursor-pointer p-0.5"
-                title={isThanked ? "Thanked" : "Send Thanks"}
+                title={isThanked ? (canThank ? "Thanked" : "The author thanked this reply") : "Send thanks"}
               >
                 <Heart size={12} fill={isThanked || showThanks ? "#D66A3E" : "none"} />
               </button>
@@ -661,25 +667,33 @@ function ResponseItem({
   index: number;
   thought: Thought;
   onDeleteReply?: (replyId: string) => void;
-  onThankReply?: (thoughtId: string, reply: ThoughtResponse) => void;
+  onThankReply?: (thoughtId: string, reply: ThoughtResponse) => Promise<boolean> | void;
 }) {
   const timeStr = relativeTime(response.timestamp);
   const isAI = response.isAI;
   const [isThanked, setIsThanked] = useState(() => {
     try {
       const thanked = JSON.parse(localStorage.getItem('ember_thanked_replies') || '[]');
-      return Array.isArray(thanked) && thanked.includes(response.id);
+      return !!response.thanked || (Array.isArray(thanked) && thanked.includes(response.id));
     } catch {
-      return false;
+      return !!response.thanked;
     }
   });
   const [showThanks, setShowThanks] = useState(false);
+  useEffect(() => { if (response.thanked) setIsThanked(true); }, [response.thanked]);
+  // Only the lantern's author can thank (the server checks too), and not their own replies.
+  const canThank = !!getOwnerToken(thought.id) && !(response.authorId && response.authorId === thought.authorId);
 
-  const handleThank = () => {
-    if (isThanked) return;
+  const handleThank = async () => {
+    if (isThanked || !canThank) return;
     setIsThanked(true);
     setShowThanks(true);
     setTimeout(() => setShowThanks(false), 2000);
+    const ok = onThankReply ? await onThankReply(thought.id, response) : true;
+    if (ok === false) {
+      setIsThanked(false); // not sent: let them try again
+      return;
+    }
     try {
       const raw = localStorage.getItem('ember_thanked_replies');
       const list = raw ? JSON.parse(raw) : [];
@@ -688,9 +702,6 @@ function ResponseItem({
         localStorage.setItem('ember_thanked_replies', JSON.stringify(list));
       }
     } catch {}
-    if (onThankReply) {
-      onThankReply(thought.id, response);
-    }
   };
 
   const wrapper = (children: React.ReactNode) => (
@@ -726,12 +737,12 @@ function ResponseItem({
                 <Trash2 size={12} />
               </button>
             )}
-            {!isAI && (
+            {!isAI && (canThank || isThanked) && (
               <button
                 onClick={handleThank}
                 disabled={isThanked}
                 className="flex items-center gap-1 text-[#D66A3E] hover:text-[#bd5e37] transition-colors focus:outline-none cursor-pointer"
-                title={isThanked ? "Thanked" : "Send Thanks"}
+                title={isThanked ? (canThank ? "Thanked" : "The author thanked this reply") : "Send thanks"}
               >
                 <Heart size={13} fill={isThanked || showThanks ? "#D66A3E" : "none"} />
               </button>
@@ -781,12 +792,12 @@ function ResponseItem({
                 <Trash2 size={12} />
               </button>
             )}
-            {!isAI && (
+            {!isAI && (canThank || isThanked) && (
               <button
                 onClick={handleThank}
                 disabled={isThanked}
                 className="flex items-center gap-1 text-[#D66A3E] hover:text-[#bd5e37] transition-colors focus:outline-none cursor-pointer ml-1"
-                title={isThanked ? "Thanked" : "Send Thanks"}
+                title={isThanked ? (canThank ? "Thanked" : "The author thanked this reply") : "Send thanks"}
               >
                 <Heart size={12} fill={isThanked || showThanks ? "#D66A3E" : "none"} />
               </button>
@@ -861,12 +872,12 @@ function ResponseItem({
           <span style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
             {timeStr}
           </span>
-          {!isAI && (
+          {!isAI && (canThank || isThanked) && (
             <button
               onClick={handleThank}
               disabled={isThanked}
               className="flex items-center gap-1 text-[#D66A3E] hover:text-[#bd5e37] transition-colors focus:outline-none cursor-pointer"
-              title={isThanked ? "Thanked" : "Send Thanks"}
+              title={isThanked ? (canThank ? "Thanked" : "The author thanked this reply") : "Send thanks"}
             >
               <Heart size={12} fill={isThanked || showThanks ? "#D66A3E" : "none"} />
             </button>

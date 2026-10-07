@@ -48,6 +48,8 @@ export interface ThoughtResponse {
   drawingData?: string;
   audioUrl?: string;
   authorId?: string;
+  /** The lantern's author sent this reply a thank-you heart (from the feed). */
+  thanked?: boolean;
   /** Only when sending a voice reply: recording length, required by the server. */
   durationSec?: number;
 }
@@ -303,9 +305,14 @@ export default function App() {
 
       let title = '';
       if (validNotifications.length > 1) {
-        title = `${validNotifications.length} new replies`;
+        title = validNotifications.every((n: any) => n.kind === 'thanks')
+          ? `✦ Your words helped ${validNotifications.length} people`
+          : `${validNotifications.length} new notifications`;
       } else {
-        if (newest.isAI) {
+        if (newest.kind === 'thanks') {
+          // The author of a lantern you replied to sent your reply a thank-you heart.
+          title = '✦ Your words helped someone';
+        } else if (newest.isAI) {
           title = '✦ Ember answered';
         } else if (newest.type === 'note') {
           title = 'Someone answered your lantern';
@@ -320,7 +327,9 @@ export default function App() {
         }
       }
 
-      const subtitle = newest.preview
+      const subtitle = newest.kind === 'thanks'
+        ? (newest.preview ? `They sent a heart for "${newest.preview}"` : 'They sent a thank-you heart for your reply')
+        : newest.preview
         ? `"${newest.preview}"`
         : (newest.thoughtText || targetThought.text);
 
@@ -374,7 +383,7 @@ export default function App() {
         // Reuse the previous object for thoughts that didn't change, so React.memo'd lanterns
         // skip re-rendering on each poll/realtime refetch (40+ lanterns re-rendered every time).
         const sig = (t: any) => JSON.stringify([t.x, t.y, t.text, t.emotion, t.aiStatus, t.showHelp, t.isExample,
-          t.lantern, (t.responses || []).map((r: any) => [r.id, r.content, r.audioUrl, r.drawingData])]);
+          t.lantern, (t.responses || []).map((r: any) => [r.id, r.content, r.audioUrl, r.drawingData, r.thanked])]);
         const prevById = new Map(prev.map(t => [t.id, t]));
         for (let i = 0; i < parsedData.length; i++) {
           const old = prevById.get(parsedData[i].id);
@@ -543,25 +552,8 @@ export default function App() {
         }
       });
 
-    // Subscribe to thank-you warmth broadcast events
-    const warmthChannel = supabase.channel('ember-warmth');
-    warmthChannel
-      .on('broadcast', { event: 'thank-you' }, ({ payload }: any) => {
-        if (!payload) return;
-        if (payload.targetAuthorId && payload.targetAuthorId === anonUserId) {
-          playNotificationChime();
-          setHasUnreadNotification(true);
-          const t = thoughtsRef.current.find(item => item.id === payload.thoughtId);
-          triggerToast({
-            id: `thank-${payload.replyId || Date.now()}`,
-            thought: t || ({ id: payload.thoughtId, text: 'Your whisper', responses: [] } as any),
-            title: '✦ Your words helped someone',
-            subtitle: 'The author sent you a thank-you heart for your whisper',
-            isAI: false,
-          });
-        }
-      })
-      .subscribe();
+    // Thank-you hearts reach the replier through POST /notifications (kind "thanks"): saved on the
+    // server, so they arrive even if the replier was offline, and only the real author can send one.
 
     return () => {
       clearInterval(pollInterval);
@@ -569,9 +561,8 @@ export default function App() {
       document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(channel);
       supabase.removeChannel(presenceChannel);
-      supabase.removeChannel(warmthChannel);
     };
-  }, [fetchThoughts, anonUserId, triggerToast]);
+  }, [fetchThoughts]);
 
   const handleToastClick = useCallback((thought: Thought) => {
     if (toastTimerRef.current) {
@@ -869,40 +860,30 @@ export default function App() {
     setShowDrawModal(false);
   }, [selectedThought, handleAddResponse]);
 
-  const handleThankReply = useCallback((thoughtId: string, reply: ThoughtResponse) => {
-    // 1. Broadcast thank-you warmth event to other clients
-    try {
-      const warmthChannel = supabase.channel('ember-warmth');
-      warmthChannel.send({
-        type: 'broadcast',
-        event: 'thank-you',
-        payload: {
-          thoughtId,
-          replyId: reply.id,
-          targetAuthorId: reply.authorId,
-          content: reply.content || 'your whisper',
-        },
-      });
-    } catch (e) {
-      console.warn('Realtime warmth broadcast error:', e);
+  // Thank-you heart (only offered on your own lantern): saved on the server, which tells the
+  // replier "Your words helped someone" through their notifications. Returns false if it failed,
+  // so the heart can un-fill.
+  const handleThankReply = useCallback(async (thoughtId: string, reply: ThoughtResponse) => {
+    const ok = await api.thankReply(thoughtId, reply.id);
+    if (!ok) {
+      showNotice("Couldn't send your thank-you. Try again in a moment.", 'mild');
+      return false;
     }
-
-    // 2. Play gentle chime and trigger positive feedback toast
     playNotificationChime();
     const targetThought = thoughtsRef.current.find(t => t.id === thoughtId) || ({
       id: thoughtId,
       text: 'Your whisper',
       responses: [],
     } as any);
-
     triggerToast({
       id: `thank-${reply.id}-${Date.now()}`,
       thought: targetThought,
-      title: '✦ Your words helped someone',
-      subtitle: 'The author sent you a thank-you heart for your whisper',
+      title: '✦ Thank-you sent',
+      subtitle: "They'll know their words helped you",
       isAI: false,
     });
-  }, [triggerToast]);
+    return true;
+  }, [triggerToast, showNotice]);
 
   // Auto-play Ember's voice reply once when it arrives on one of YOUR thoughts.
   // Replies already there when the page loaded are only marked as seen (no surprise audio).
