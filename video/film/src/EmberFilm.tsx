@@ -287,39 +287,47 @@ const SCENES: { dur: number; el: React.ReactNode; vo?: keyof typeof T; speaks?: 
   { vo: 'turn', dur: s(D.turn), el: <Turn /> },
   { dur: s(10), el: <RaylightShot src="raylight-lantern.mp4" dur={s(10)} /> },
   { vo: 'showcase', dur: s(D.showcase), el: <LanternShowcase /> },
+  // App clips: screen recordings of the real app (public/0*.mp4, recorded Oct 8; silent).
+  // 03-release shows the browser bar until 16 s, so it starts at the release.
   {
-    dur: s(12), el: <AppClip src="03-release.mp4" from={3} dur={s(12)} label="Release a feeling"
+    dur: s(14), el: <AppClip src="03-release.mp4" from={17.5} dur={s(14)} label="Release a feeling"
       caption="Anonymous. No profiles. No likes. No followers." />,
   },
   {
-    dur: s(12), el: <AppClip src="02-sky.mp4" from={1} dur={s(12)} label="Constellations"
+    dur: s(12), el: <AppClip src="02-sky.mp4" from={0} dur={s(12)} label="Constellations"
       caption="Feelings like yours, connected. Live, in real time." />,
   },
   {
-    speaks: true, dur: s(8), el: (
+    speaks: true, dur: s(12), el: (
       <>
-        <AppClip src="03-release.mp4" from={39.5} dur={s(8)} label="Ember answers"
+        <AppClip src="03-release.mp4" from={33.5} dur={s(12)} label="Ember answers"
           caption={<>If no one answers yet, Ember does: warm, spoken, and always labeled <span style={{ color: C.ember }}>✦ Ember (AI)</span></>} />
-        <Audio src={staticFile('03-release-ember-voice.mp3')} startFrom={0} volume={EMBER_GAIN} />
+        {/* The recording is silent: Ember's reply as shown on screen, in Ember's voice (voiceover.mjs). */}
+        <Sequence from={s(6.5)}>
+          <Audio src={staticFile('vo/ember-reply.mp3')} volume={EMBER_GAIN} />
+        </Sequence>
       </>
     ),
   },
   {
-    dur: s(8.5), el: <AppClip src="04-moderation.mp4" from={1} dur={s(8.5)} label="A space that stays safe"
+    dur: s(9), el: <AppClip src="04-moderation.mp4" from={7} dur={s(9)} label="A space that stays safe"
       caption="Hate is blocked: text, voice and drawings, checked on the server. Pain is always welcome." />,
   },
   {
-    dur: s(4.5), el: <AppClip src="05-crisis.mp4" from={0.4} dur={s(4.5)} label="When it's more than a bad night"
+    dur: s(6.5), el: <AppClip src="05-crisis.mp4" from={1.5} dur={s(6.5)} label="When it's more than a bad night"
       caption="Some messages are a cry for help." />,
   },
   {
-    speaks: true, dur: s(15), el: (
-      <>
-        <AppClip src="05-crisis.mp4" from={16.6} dur={s(15)} label="Never silenced"
-          caption="Instant warning, the right helpline for your country, and Ember's calming voice." />
-        <Audio src={staticFile('05-crisis-ember-voice.mp3')} startFrom={0} volume={EMBER_GAIN} />
-      </>
-    ),
+    dur: s(9), el: <AppClip src="05-crisis.mp4" from={8} dur={s(9)} label="Never silenced"
+      caption="An instant warning, the right helpline for your country, and Ember answers right away." />,
+  },
+  {
+    dur: s(8), el: <AppClip src="05-crisis.mp4" from={34} dur={s(8)} label="Breathe through it"
+      caption="A guided breathing exercise, right there on the crisis card." />,
+  },
+  {
+    dur: s(6), el: <AppClip src="05-crisis.mp4" from={49.5} dur={s(6)} label="Help, wherever you are"
+      caption="Verified helplines for many countries, one tap away." />,
   },
   { vo: 'dawn', dur: s(D.dawn), el: <Dawn /> },
   { vo: 'proof', dur: s(D.proof), el: <Proof /> },

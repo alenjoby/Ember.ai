@@ -25,6 +25,8 @@ export const LINES = {
   'proof': 'Real. Safe. Live.',
   'close-1': 'Tonight, someone is still awake.',
   'close-2': "Now, they don't have to be alone with it.",
+  // Ember's actual reply in the 03-release recording (the recordings have no sound).
+  'ember-reply': 'The silence can feel big at first. Do you miss home at night?',
 };
 
 // .env next to this script (simple KEY=value lines); real environment variables win.

@@ -153,12 +153,22 @@ export const AppClip: React.FC<{
           {label}
         </div>
         <div style={{
-          width: W, height: H, borderRadius: 22, overflow: 'hidden', transform: `scale(${0.96 + 0.04 * enter})`,
+          position: 'relative', width: W, height: H, borderRadius: 22, overflow: 'hidden', transform: `scale(${0.96 + 0.04 * enter})`,
           boxShadow: `0 30px 120px rgba(0,0,0,0.7), 0 0 80px ${C.ember}33`, border: '1px solid rgba(255,255,255,0.12)',
         }}>
           <div style={{ width: '100%', height: '100%', transform: `scale(${zoom})` }}>
             <OffthreadVideo src={staticFile(src)} startFrom={Math.round(from * fps)} muted style={{ width: '100%', height: '100%' }} />
           </div>
+          {/* The screen recordings show Windows' "Activate Windows" note (bottom right) and the
+              dev-only Demo/Perf buttons (bottom left): soft dark corners hide them over the sky. */}
+          <div style={{
+            position: 'absolute', right: 0, bottom: 0, width: '38%', height: '24%', pointerEvents: 'none',
+            background: 'radial-gradient(ellipse at 100% 100%, rgba(10,7,6,0.98) 62%, rgba(10,7,6,0) 92%)',
+          }} />
+          <div style={{
+            position: 'absolute', left: 0, bottom: 0, width: '18%', height: '17%', pointerEvents: 'none',
+            background: 'radial-gradient(ellipse at 0% 100%, rgba(10,7,6,0.98) 62%, rgba(10,7,6,0) 92%)',
+          }} />
         </div>
       </AbsoluteFill>
       <AbsoluteFill style={{ justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 18 }}>
