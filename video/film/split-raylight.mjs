@@ -17,8 +17,10 @@ if (!input || !fs.existsSync(input)) {
 
 const CUTS = [
   { name: 'raylight-intro.mp4', from: 0, dur: 3.64 },
-  { name: 'raylight-lantern.mp4', from: 3.64, dur: 10 },
-  { name: 'raylight-outro.mp4', from: 13.64, dur: 4.04 },
+  { name: 'raylight-lantern.mp4', from: 3.64, dur: 9.98 },
+  // A few hundredths after the 13.64 s cut: at 30 fps the first frame otherwise caught the
+  // lantern shot's last frame.
+  { name: 'raylight-outro.mp4', from: 13.68, dur: 4.0 },
 ];
 
 fs.mkdirSync('public', { recursive: true });
