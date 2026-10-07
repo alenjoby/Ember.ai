@@ -800,9 +800,11 @@ export default function App() {
     setThoughts(prev => prev.map(t => (t.id === id ? { ...t, x, y } : t)));
   }, []);
 
-  const handleSendDrawing = useCallback((drawingData: string) => {
+  // Returns the promise: the draw panel shows "Sending…" and only closes once it's sent, so a
+  // refused or failed drawing isn't lost (it used to close at once, before the check finished).
+  const handleSendDrawing = useCallback(async (drawingData: string) => {
     if (selectedThought) {
-      handleAddResponse(selectedThought.id, {
+      await handleAddResponse(selectedThought.id, {
         type: 'drawing',
         content: '',
         drawingData,

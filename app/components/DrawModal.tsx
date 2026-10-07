@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PenTool, Brush, Eraser, Undo2, Redo2, Trash2, Send, Smile, Shield } from 'lucide-react';
+import { PenTool, Brush, Eraser, Undo2, Redo2, Trash2, Send, Smile, Shield, Loader2 } from 'lucide-react';
+import { SendingStatus } from './SendingStatus';
 import { StickerIcon } from './StickerIcon';
 import imgStickerSheet from '../../assets/sticker-sheet.webp';
 
@@ -15,7 +16,7 @@ const STICKER_SPRITE_POS: Record<string, [number, number]> = {
 
 interface DrawModalProps {
   onClose: () => void;
-  onSend: (drawingData: string) => void;
+  onSend: (drawingData: string) => Promise<void> | void;
 }
 
 type Tool = 'pen' | 'brush' | 'eraser' | 'sticker';
@@ -63,6 +64,7 @@ export function DrawModal({ onClose, onSend }: DrawModalProps) {
   const [redoStack, setRedoStack] = useState<Stroke[][]>([]);
   const [selectedSticker, setSelectedSticker] = useState<string>('sticker_heart');
   const [showStickerPicker, setShowStickerPicker] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const isDrawingRef = useRef(false);
   const currentStrokeRef = useRef<Stroke | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -278,11 +280,19 @@ export function DrawModal({ onClose, onSend }: DrawModalProps) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const canvas = canvasRef.current;
-    if (!canvas || strokes.length === 0) return;
+    if (!canvas || strokes.length === 0 || isSending) return;
     const dataUrl = canvas.toDataURL('image/png');
-    onSend(dataUrl);
+    setIsSending(true);
+    try {
+      await onSend(dataUrl); // the parent closes this panel once it's sent
+    } catch (err) {
+      // Refused or failed (the app shows why): keep the drawing so it can be changed and resent.
+      console.warn('Could not send drawing, keeping it:', err);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const toolButtons: { id: Tool; icon: React.ReactNode; label: string }[] = [
@@ -360,6 +370,21 @@ export function DrawModal({ onClose, onSend }: DrawModalProps) {
             onTouchMove={onPointerMove}
             onTouchEnd={onPointerUp}
           />
+
+          {/* Sending: dim the drawing (and block drawing on it) while it's checked and sent */}
+          <AnimatePresence>
+            {isSending && (
+              <motion.div
+                className="absolute inset-0 z-10 flex items-center justify-center bg-[rgba(10,7,12,0.5)] cursor-wait"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+              >
+                <SendingStatus steps={['Looking at your drawing…', 'Sending it with care…', 'Almost there…']} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Sticker Picker Popup */}
@@ -468,14 +493,14 @@ export function DrawModal({ onClose, onSend }: DrawModalProps) {
               {/* Send Button */}
               <motion.button
                 onClick={handleSend}
-                disabled={strokes.length === 0}
+                disabled={strokes.length === 0} // not while sending: that would fade it (handleSend ignores repeat clicks)
                 className="flex-shrink-0 bg-gradient-to-r from-[#D66A3E] to-[#E88057] text-[#fffcf9] disabled:opacity-50 disabled:cursor-not-allowed h-10 px-6 rounded-full flex items-center gap-2 font-medium ml-1 shadow-[0_4px_14px_rgba(214,106,62,0.4)]"
                 style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
                 whileHover={strokes.length > 0 ? { scale: 1.05, boxShadow: '0 6px 20px rgba(214,106,62,0.5)' } : {}}
                 whileTap={strokes.length > 0 ? { scale: 0.95 } : {}}
                 transition={{ duration: 0.15 }}
               >
-                 <Send size={16} /> Send
+                 {isSending ? <><Loader2 size={16} className="animate-spin" /> Sending…</> : <><Send size={16} /> Send</>}
               </motion.button>
            </div>
         </div>

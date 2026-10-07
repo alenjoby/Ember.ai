@@ -9,6 +9,7 @@ import { ScreenGlow } from './ScreenGlow';
 import { StickerIcon as BaseStickerIcon } from './StickerIcon';
 import { detectNegativity, getVoiceReminder } from '../safeSpace';
 import { SafeSpaceGuard, SafeSpaceInline } from './SafeSpaceGuard';
+import { SendingStatus } from './SendingStatus';
 import { AiLabel } from './AiLabel';
 import { CrisisCard } from './CrisisCard';
 import { useLanternSound } from './useLanternSound';
@@ -136,6 +137,7 @@ function NoteTab({ onSend }: { onSend: (text: string) => Promise<void> | void })
           onKeyDown={handleKeyDown}
           placeholder="Whisper something gentle... (Enter to send)"
           maxLength={240}
+          readOnly={isSending}
           className="w-full bg-transparent resize-none outline-none text-[#fcf8f2] placeholder-[#8a7f79]/70 text-[15px] leading-[1.55] transition-all"
           style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 400, minHeight: 74 }}
         />
@@ -170,7 +172,10 @@ function NoteTab({ onSend }: { onSend: (text: string) => Promise<void> | void })
             whileTap={text.trim() && safeCheck.allowed ? { scale: 0.96 } : {}}
           >
             {isSending ? (
-              <Loader2 size={13} className="animate-spin text-white" />
+              <>
+                <Loader2 size={13} className="animate-spin text-white" />
+                <span>Sending…</span>
+              </>
             ) : !safeCheck.allowed && text.trim() ? (
               <>
                 <Shield size={13} />
@@ -182,6 +187,8 @@ function NoteTab({ onSend }: { onSend: (text: string) => Promise<void> | void })
           </motion.button>
         </div>
       </div>
+
+      {isSending && <SendingStatus steps={['Reading it gently…', 'Sending your words…', 'Almost there…']} />}
 
       {/* Fullscreen SafeSpace Guard overlay */}
       <SafeSpaceGuard
@@ -387,7 +394,8 @@ function VoiceTab({ onSend }: { onSend: (text: string, url: string, durationSec:
             <>
               <button
                 onClick={() => { setRecordState('idle'); setDuration(0); setRecordedAudioUrl(''); }}
-                className="px-4 h-[34px] rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-white/70 text-[12px] transition-all cursor-pointer"
+                disabled={loading}
+                className="disabled:opacity-40 disabled:cursor-not-allowed px-4 h-[34px] rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-white/70 text-[12px] transition-all cursor-pointer"
                 style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
               >
                 Re-record
@@ -400,11 +408,17 @@ function VoiceTab({ onSend }: { onSend: (text: string, url: string, durationSec:
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.96 }}
               >
-                {loading ? <Loader2 size={13} className="animate-spin" /> : 'Send voice'}
+                {loading ? <><Loader2 size={13} className="animate-spin" /> Sending…</> : 'Send voice'}
               </motion.button>
             </>
           )}
         </div>
+        {loading && (
+          <SendingStatus
+            className="mt-3"
+            steps={['Listening to your voice…', 'Making sure it feels safe…', 'Almost there…']}
+          />
+        )}
       </div>
 
       <SafeSpaceGuard
