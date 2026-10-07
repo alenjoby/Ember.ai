@@ -1,13 +1,30 @@
 # Ember.ai
 
-**A candle-lit night sky where strangers release what they feel, and others answer with words, voice, drawings or stickers. Every feeling becomes a lantern of light and sound.**
+<p align="center">
+  <img src="assets/readme/banner.png" alt="Ember.ai: release what you feel, someone will answer" width="100%" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white" alt="React 18" />
+  <img src="https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white" alt="Vite 6" />
+  <img src="https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind 4" />
+  <img src="https://img.shields.io/badge/Supabase-Postgres%20%2B%20Edge%20Functions-3ECF8E?logo=supabase&logoColor=white" alt="Supabase" />
+  <img src="https://img.shields.io/badge/AI-Featherless%20%C2%B7%20Gemini-8A2BE2" alt="AI: Featherless and Gemini" />
+  <img src="https://img.shields.io/badge/voice-ElevenLabs-000000" alt="ElevenLabs voice" />
+  <img src="https://img.shields.io/badge/hosted%20on-Vercel-000000?logo=vercel&logoColor=white" alt="Hosted on Vercel" />
+  <img src="https://img.shields.io/badge/ForgeHacks%202026-AI%20%2B%20Creativity-D66A3E" alt="ForgeHacks 2026, AI + Creativity" />
+</p>
+
+<p align="center"><b>An anonymous night sky where every feeling becomes a lantern of light and sound, and someone always answers.</b></p>
+
+<p align="center">
+  <a href="https://ember-ai-beta.vercel.app"><img src="https://img.shields.io/badge/%E2%9C%A6%20TRY%20IT-ember--ai--beta.vercel.app-D66A3E?style=for-the-badge" alt="Try it" /></a>
+  <a href="#"><img src="https://img.shields.io/badge/%E2%96%B6%20WATCH-demo%20video-1a1a1a?style=for-the-badge" alt="Watch the demo video" /></a>
+  <a href="#"><img src="https://img.shields.io/badge/DEVPOST-Ember.ai-003E54?style=for-the-badge&logo=devpost&logoColor=white" alt="Devpost" /></a>
+</p>
 
 Built for **ForgeHacks Online 2026**, track **AI + Creativity**:
 *"Build an AI-powered experience that introduces a new way for people to create, collaborate, express ideas, or experience art and media."*
-
-- **Live app:** https://ember-ai-beta.vercel.app
-- **Demo video:** _add link_
-- **Devpost:** _add link_
 
 > Ember is a place to be heard, not a replacement for professional care.
 > If you're in danger right now, call your local helpline: **India 14416 (Tele-MANAS) · US 988 · UK 116 123 (Samaritans)**.
@@ -135,11 +152,3 @@ assets/                  Images and the ambient music
 
 - **Alen Joby** ([@alenjoby](https://github.com/alenjoby)): frontend, design, sound
 - **Ejin** ([@ejinbt](https://github.com/ejinbt)): backend, AI pipeline, safety, deployment, demo video
-
-## Credits and disclosures
-
-- Third-party services: Supabase, Featherless (Qwen 2.5), Google Gemini, ElevenLabs, Vercel.
-- Open-source libraries listed in [package.json](package.json) (React, Vite, Tailwind, Framer Motion, Tone.js, Radix UI, lucide icons and others) under their own licenses.
-- Statistics in the pitch: World Health Organization.
-- AI coding assistants were used during development.
-- Demo video: made with Remotion and Raylight; narration by ElevenLabs; background music generated with ElevenLabs Music.
