@@ -17,6 +17,12 @@ const s = (sec: number) => Math.round(sec * FPS);
 const VO_LEN = VO as Record<string, number>;
 const VO_GAP = 0.3; // pause between two lines
 
+// Mix: the voice must be the loudest thing. The ElevenLabs lines come out quiet (about -23 dB)
+// while the Raylight whooshes peak near -12 dB, so the narration sounded far too soft. Voices are now normalised; the effects come down.
+const VOICE_GAIN = 1;      // narration (files normalised to -16 LUFS by voiceover.mjs)
+const EMBER_GAIN = 1;      // Ember's replies (normalised to -16 LUFS too)
+const RAYLIGHT_GAIN = 0.4; // Raylight sound effects, -8 dB
+
 function timeline(names: string[], lead: number, silentAt: number[], minDur: number) {
   if (!names.every(n => VO_LEN[n])) return { at: silentAt, dur: minDur, names: [] as string[] };
   const at: number[] = [];
@@ -33,7 +39,7 @@ const Narration: React.FC<{ tl: ReturnType<typeof timeline> }> = ({ tl }) => (
   <>
     {tl.names.map((n, i) => (
       <Sequence key={n} from={s(tl.at[i])}>
-        <Audio src={staticFile(`vo/${n}.mp3`)} />
+        <Audio src={staticFile(`vo/${n}.mp3`)} volume={VOICE_GAIN} />
       </Sequence>
     ))}
   </>
@@ -267,7 +273,7 @@ const Close: React.FC = () => {
 /** A full-frame shot exported from Raylight (public/raylight-*.mp4), with its own sound. */
 const RaylightShot: React.FC<{ src: string; dur: number }> = ({ src, dur }) => (
   <Fade dur={dur} inF={8} outF={8}>
-    <OffthreadVideo src={staticFile(src)} style={{ width: '100%', height: '100%' }} />
+    <OffthreadVideo src={staticFile(src)} volume={RAYLIGHT_GAIN} style={{ width: '100%', height: '100%' }} />
   </Fade>
 );
 
@@ -294,7 +300,7 @@ const SCENES: { dur: number; el: React.ReactNode; vo?: keyof typeof T; speaks?: 
       <>
         <AppClip src="03-release.mp4" from={39.5} dur={s(8)} label="Ember answers"
           caption={<>If no one answers yet, Ember does: warm, spoken, and always labeled <span style={{ color: C.ember }}>✦ Ember (AI)</span></>} />
-        <Audio src={staticFile('03-release-ember-voice.mp3')} startFrom={0} />
+        <Audio src={staticFile('03-release-ember-voice.mp3')} startFrom={0} volume={EMBER_GAIN} />
       </>
     ),
   },
@@ -311,7 +317,7 @@ const SCENES: { dur: number; el: React.ReactNode; vo?: keyof typeof T; speaks?: 
       <>
         <AppClip src="05-crisis.mp4" from={16.6} dur={s(15)} label="Never silenced"
           caption="Instant warning, the right helpline for your country, and Ember's calming voice." />
-        <Audio src={staticFile('05-crisis-ember-voice.mp3')} startFrom={0} />
+        <Audio src={staticFile('05-crisis-ember-voice.mp3')} startFrom={0} volume={EMBER_GAIN} />
       </>
     ),
   },

@@ -66,7 +66,13 @@ for (const name of names) {
     process.exit(1);
   }
   const file = path.join(outDir, `${name}.mp3`);
-  fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+  const raw = path.join(outDir, `${name}.raw.mp3`);
+  fs.writeFileSync(raw, Buffer.from(await res.arrayBuffer()));
+  // ElevenLabs comes out quiet (about -23 dB); normalise to -16 LUFS so the voice sits on top
+  // of the music and the Raylight effects.
+  execFileSync(ffmpegPath, ['-y', '-loglevel', 'error', '-i', raw, '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11',
+    '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', '192k', file]);
+  fs.rmSync(raw);
   // Length from ffmpeg's report ("Duration: 00:00:02.53").
   let info = '';
   try { execFileSync(ffmpegPath, ['-hide_banner', '-i', file], { stdio: 'pipe' }); } catch (e) { info = String(e.stderr); }
