@@ -31,7 +31,7 @@ export const PALETTES: Record<string, [string, string, string]> = {
 
 /** Fade a block in at the start and out at the end of its sequence. */
 export const Fade: React.FC<{ children: React.ReactNode; inF?: number; outF?: number; dur: number; style?: React.CSSProperties }> = ({
-  children, inF = 15, outF = 15, dur, style,
+  children, inF = 10, outF = 10, dur, style,
 }) => {
   const f = useCurrentFrame();
   const opacity = interpolate(f, [0, inF, dur - outF, dur], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
@@ -77,7 +77,7 @@ export const TypeText: React.FC<{ text: string; start?: number; cps?: number; st
 /** A line that rises and fades in at `at` frames. */
 export const Line: React.FC<{ at: number; children: React.ReactNode; style?: React.CSSProperties }> = ({ at, children, style }) => {
   const f = useCurrentFrame();
-  const t = interpolate(f, [at, at + 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const t = interpolate(f, [at, at + 12], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   return <div style={{ opacity: t, transform: `translateY(${(1 - t) * 18}px)`, ...style }}>{children}</div>;
 };
 

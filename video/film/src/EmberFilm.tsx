@@ -9,17 +9,20 @@ import { AppClip, C, Fade, Lantern, Line, PALETTES, sans, serif, Sky, Title, Typ
 export const FPS = 30;
 const s = (sec: number) => Math.round(sec * FPS);
 
+// Text scene lengths (seconds). Kept short and punchy: judges decide in the first seconds.
+const D = { hook: 4.5, problem: 9, turn: 7.5, showcase: 6.5, dawn: 4.5, proof: 7, close: 10 };
+
 // ─── motion-graphics scenes ─────────────────────────────────────────
 
 const Hook: React.FC = () => {
   const f = useCurrentFrame();
-  const dur = s(6.5);
-  const ember = interpolate(f, [s(4.2), s(5.2)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const dur = s(D.hook);
+  const ember = interpolate(f, [s(2.4), s(3.1)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   return (
-    <Fade dur={dur} inF={20}>
+    <Fade dur={dur} inF={10}>
       <AbsoluteFill style={{ background: '#050304', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ fontFamily: sans, color: C.muted, fontSize: 30, letterSpacing: 6, marginBottom: 40 }}>3:07 AM</div>
-        <TypeText text="It's 3 a.m. You can't say it to anyone you know." start={s(0.6)} cps={24}
+        <TypeText text="It's 3 a.m. You can't say it to anyone you know." start={s(0.3)} cps={40}
           style={{ fontFamily: serif, color: C.cream, fontSize: 62 }} />
         <div style={{
           marginTop: 70, width: 10, height: 10, borderRadius: '50%', background: C.ember, opacity: ember,
@@ -31,14 +34,14 @@ const Hook: React.FC = () => {
 };
 
 const Problem: React.FC = () => {
-  const dur = s(14);
+  const dur = s(D.problem);
   return (
-    <Fade dur={dur}>
+    <Fade dur={dur} inF={10}>
       <Sky dim={0.45} />
       <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', gap: 36 }}>
-        <Line at={s(0.5)}><Title size={60}>1 in 6 people worldwide feel lonely.</Title></Line>
-        <Line at={s(4.5)}><Title size={60}>Every year, more than 700,000 people die by suicide.</Title></Line>
-        <Line at={s(8.5)}><Title size={60} style={{ color: C.ember }}>Most of them never told anyone how they felt.</Title></Line>
+        <Line at={s(0.2)}><Title size={60}>1 in 6 people worldwide feel lonely.</Title></Line>
+        <Line at={s(2.5)}><Title size={60}>Every year, more than 700,000 people die by suicide.</Title></Line>
+        <Line at={s(4.9)}><Title size={60} style={{ color: C.ember }}>Most of them never told anyone how they felt.</Title></Line>
       </AbsoluteFill>
       <AbsoluteFill style={{ justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 40 }}>
         <div style={{ fontFamily: sans, color: C.muted, fontSize: 20 }}>Source: WHO</div>
@@ -50,10 +53,10 @@ const Problem: React.FC = () => {
 const Turn: React.FC = () => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const dur = s(10);
-  const rise = interpolate(f, [0, s(3.5)], [380, 0], { extrapolateRight: 'clamp' });
-  const lit = interpolate(f, [s(2.5), s(4)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const logo = spring({ frame: f - s(4.5), fps, config: { damping: 200 } });
+  const dur = s(D.turn);
+  const rise = interpolate(f, [0, s(2.4)], [380, 0], { extrapolateRight: 'clamp' });
+  const lit = interpolate(f, [s(1.6), s(2.6)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const logo = spring({ frame: f - s(2.9), fps, config: { damping: 200 } });
   return (
     <Fade dur={dur}>
       <Sky />
@@ -84,7 +87,7 @@ const LIGHTS: { e: keyof typeof PALETTES; shape: string; x: number; y: number }[
 /** Six emotions, six lanterns: color, shape and sound per feeling. */
 const LanternShowcase: React.FC = () => {
   const f = useCurrentFrame();
-  const dur = s(8);
+  const dur = s(D.showcase);
   return (
     <Fade dur={dur}>
       <Sky />
@@ -93,7 +96,7 @@ const LanternShowcase: React.FC = () => {
           <Title size={50}>Every feeling becomes a lantern of light and sound.</Title>
         </Line>
         {LIGHTS.map((l, i) => {
-          const t = interpolate(f, [i * 8, i * 8 + 25], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          const t = interpolate(f, [i * 5, i * 5 + 18], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
           const bob = Math.sin((f + i * 20) / 22) * 8;
           return (
             <div key={l.e} style={{ position: 'absolute', left: l.x - 60, top: l.y + bob + (1 - t) * 80, opacity: t, textAlign: 'center' }}>
@@ -103,7 +106,7 @@ const LanternShowcase: React.FC = () => {
           );
         })}
         <AbsoluteFill style={{ justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 70 }}>
-          <Line at={s(2.5)}>
+          <Line at={s(1.4)}>
             <div style={{ fontFamily: sans, color: C.muted, fontSize: 30 }}>
               AI picks its colors, shape, glow, and an ambient soundscape: rain, wind, chimes, piano.
             </div>
@@ -117,9 +120,9 @@ const LanternShowcase: React.FC = () => {
 /** Lanterns fade at dawn: nothing stays forever. */
 const Dawn: React.FC = () => {
   const f = useCurrentFrame();
-  const dur = s(6);
-  const fade = interpolate(f, [s(1.5), s(5)], [1, 0.08], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const dawn = interpolate(f, [s(1), s(5.5)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const dur = s(D.dawn);
+  const fade = interpolate(f, [s(0.8), s(3.8)], [1, 0.08], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const dawn = interpolate(f, [s(0.5), s(4.2)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   return (
     <Fade dur={dur}>
       <Sky dim={1 - dawn * 0.7} />
@@ -130,8 +133,8 @@ const Dawn: React.FC = () => {
         </div>
       ))}
       <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <Line at={s(1.5)}><Title size={64}>Lanterns fade after 24 hours.</Title></Line>
-        <Line at={s(3)}><Title size={44} style={{ color: C.muted, fontStyle: 'italic' }}>Say it. Let it go.</Title></Line>
+        <Line at={s(0.6)}><Title size={64}>Lanterns fade after 24 hours.</Title></Line>
+        <Line at={s(1.7)}><Title size={44} style={{ color: C.muted, fontStyle: 'italic' }}>Say it. Let it go.</Title></Line>
       </AbsoluteFill>
     </Fade>
   );
@@ -146,20 +149,20 @@ const PROOF = [
 ];
 
 const Proof: React.FC = () => {
-  const dur = s(10);
+  const dur = s(D.proof);
   return (
     <Fade dur={dur}>
       <Sky dim={0.5} />
       <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', gap: 26 }}>
         <Line at={0}><Title size={56} style={{ marginBottom: 20 }}>Real. Safe. Live.</Title></Line>
         {PROOF.map((p, i) => (
-          <Line key={p} at={s(0.8 + i * 0.9)}>
+          <Line key={p} at={s(0.4 + i * 0.5)}>
             <div style={{ fontFamily: sans, fontSize: 38, color: C.cream }}>
               <span style={{ color: C.ember, marginRight: 18 }}>✦</span>{p}
             </div>
           </Line>
         ))}
-        <Line at={s(6)}>
+        <Line at={s(3.2)}>
           <div style={{ fontFamily: sans, fontSize: 24, color: C.muted, marginTop: 30 }}>
             React · Supabase · Featherless (Qwen) · Gemini · ElevenLabs
           </div>
@@ -172,8 +175,8 @@ const Proof: React.FC = () => {
 const Close: React.FC = () => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const dur = s(13);
-  const logo = spring({ frame: f - s(4.5), fps, config: { damping: 200 } });
+  const dur = s(D.close);
+  const logo = spring({ frame: f - s(2.8), fps, config: { damping: 200 } });
   return (
     <Fade dur={dur} outF={30}>
       <Sky />
@@ -188,8 +191,8 @@ const Close: React.FC = () => {
         );
       })}
       <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <Line at={s(0.5)}><Title size={58}>Tonight, someone is still awake.</Title></Line>
-        <Line at={s(2.3)}><Title size={58} style={{ color: C.ember }}>Now, they don't have to be alone with it.</Title></Line>
+        <Line at={s(0.3)}><Title size={58}>Tonight, someone is still awake.</Title></Line>
+        <Line at={s(1.4)}><Title size={58} style={{ color: C.ember }}>Now, they don't have to be alone with it.</Title></Line>
         <div style={{ marginTop: 50, opacity: logo, textAlign: 'center' }}>
           <div style={{ fontFamily: serif, fontWeight: 600, letterSpacing: '-0.02em', fontSize: 96, color: C.cream, textShadow: `0 0 60px ${C.ember}88` }}>
             Ember<span style={{ color: C.ember }}>.ai</span>
@@ -220,11 +223,11 @@ const RaylightShot: React.FC<{ src: string; dur: number }> = ({ src, dur }) => (
 
 const SCENES: { dur: number; el: React.ReactNode }[] = [
   { dur: s(3.6), el: <RaylightShot src="raylight-intro.mp4" dur={s(3.6)} /> },
-  { dur: s(6.5), el: <Hook /> },
-  { dur: s(14), el: <Problem /> },
-  { dur: s(10), el: <Turn /> },
+  { dur: s(D.hook), el: <Hook /> },
+  { dur: s(D.problem), el: <Problem /> },
+  { dur: s(D.turn), el: <Turn /> },
   { dur: s(10), el: <RaylightShot src="raylight-lantern.mp4" dur={s(10)} /> },
-  { dur: s(8), el: <LanternShowcase /> },
+  { dur: s(D.showcase), el: <LanternShowcase /> },
   {
     dur: s(12), el: <AppClip src="03-release.mp4" from={3} dur={s(12)} label="Release a feeling"
       caption="Anonymous. No profiles. No likes. No followers." />,
@@ -259,9 +262,9 @@ const SCENES: { dur: number; el: React.ReactNode }[] = [
       </>
     ),
   },
-  { dur: s(6), el: <Dawn /> },
-  { dur: s(10), el: <Proof /> },
-  { dur: s(13), el: <Close /> },
+  { dur: s(D.dawn), el: <Dawn /> },
+  { dur: s(D.proof), el: <Proof /> },
+  { dur: s(D.close), el: <Close /> },
   { dur: s(4), el: <RaylightShot src="raylight-outro.mp4" dur={s(4)} /> },
 ];
 
