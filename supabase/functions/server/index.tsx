@@ -113,7 +113,10 @@ async function createOwner(itemId: string, kind: "thought" | "reply"): Promise<s
 
 async function canDelete(c: Context, itemId: string, kind: "thought" | "reply"): Promise<boolean> {
   if (await verifyAdminToken(c.req.header("X-Admin-Token"))) return true;
-  const token = c.req.header("X-Owner-Token");
+  return await isOwner(c.req.header("X-Owner-Token"), itemId, kind);
+}
+
+async function isOwner(token: string | undefined, itemId: string, kind: "thought" | "reply"): Promise<boolean> {
   if (!token) return false;
   const { data } = await supabase
     .from("owners")
@@ -322,13 +325,16 @@ app.delete("/thoughts/:id", async (c) => {
 });
 
 // Admin: wipe the sky. Every thought (replies cascade), every owner token, and every uploaded
-// voice note, drawing and Ember voice reply. The demo-voice cache stays (it is reused, not user data).
+// voice note, drawing and Ember voice reply. The example lanterns stay, with their seeded replies
+// (people's replies on them go). The demo-voice cache stays (it is reused, not user data).
 app.delete("/thoughts", async (c) => {
   if (!(await verifyAdminToken(c.req.header("X-Admin-Token")))) {
     return fail(c, 403, "forbidden", "Only an admin can clear the sky.");
   }
-  const { count, error } = await supabase.from("thoughts").delete({ count: "exact" }).not("id", "is", null);
+  const { count, error } = await supabase.from("thoughts").delete({ count: "exact" }).eq("is_example", false);
   if (error) throw new Error(error.message);
+  const { error: replyErr } = await supabase.from("replies").delete().eq("seeded", false);
+  if (replyErr) throw new Error(replyErr.message);
   await supabase.from("owners").delete().not("item_id", "is", null);
   background("media", removeFolders(["voice", "drawing", "ai"]));
   return c.json({ deleted: count ?? 0 });
@@ -509,11 +515,37 @@ app.post("/moderate", async (c) => {
   return c.json(await moderateText(text, !(await demoEnabled())));
 });
 
-// Notifications: new replies to the caller's own lanterns, for the "someone answered you" popup.
-// The browser sends the owner tokens it got when releasing them ({ thoughtId: ownerToken }), so
-// only the real author sees them. Replies by the author themself are left out; Ember's are
-// included (isAI) so the popup can say "Ember answered".
-const MAX_NOTIFY_THOUGHTS = 100;
+// Thank-you heart: the lantern's author thanks a reply. Proven with the lantern's owner token
+// (X-Owner-Token), so only the real author can. The replier sees it via POST /notifications.
+app.post("/thoughts/:id/replies/:replyId/thanks", async (c) => {
+  const thoughtId = c.req.param("id");
+  const replyId = c.req.param("replyId");
+  if (!UUID_RE.test(thoughtId) || !UUID_RE.test(replyId)) return fail(c, 404, "not_found", "That reply is already gone.");
+  if (await isRateLimited(c.req.raw, "reply")) return tooFast(c);
+  const { data: reply } = await supabase
+    .from("replies")
+    .select("id, is_ai, thanked_at")
+    .eq("id", replyId)
+    .eq("thought_id", thoughtId)
+    .maybeSingle();
+  if (!reply) return fail(c, 404, "not_found", "That reply is already gone.");
+  if (!(await isOwner(c.req.header("X-Owner-Token"), thoughtId, "thought"))) {
+    return fail(c, 403, "forbidden", "Only the person who released this lantern can thank its replies.");
+  }
+  if (reply.is_ai) return fail(c, 400, "bad_request", "Ember doesn't need thanks, but it's glad you're here.");
+  if (!reply.thanked_at) {
+    const { error } = await supabase.from("replies").update({ thanked_at: new Date().toISOString() }).eq("id", replyId);
+    if (error) throw new Error(error.message);
+  }
+  return c.json({ thanked: true });
+});
+
+// Notifications for the popup, from the owner tokens this browser saved ({ itemId: ownerToken },
+// lantern and reply tokens mixed), so only the real author sees them:
+// - kind "reply": new replies to your lanterns. Your own replies are left out; Ember's are
+//   included (isAI) so the popup can say "Ember answered".
+// - kind "thanks": the author of a lantern you replied to thanked your reply.
+const MAX_NOTIFY_ITEMS = 200;
 const NOTIFY_WINDOW_MS = 24 * 60 * 60 * 1000;
 app.post("/notifications", async (c) => {
   const now = new Date().toISOString(); // before the queries, so nothing slips between two polls
@@ -521,8 +553,8 @@ app.post("/notifications", async (c) => {
   const owned = body?.owned && typeof body.owned === "object" ? body.owned as Record<string, unknown> : {};
   const entries = Object.entries(owned)
     .filter((e): e is [string, string] => UUID_RE.test(e[0]) && typeof e[1] === "string")
-    // The browser adds tokens as it goes (reply tokens too), so the newest are last: keep those.
-    .slice(-MAX_NOTIFY_THOUGHTS);
+    // The browser adds tokens as it goes, so the newest are last: keep those.
+    .slice(-MAX_NOTIFY_ITEMS);
   if (!entries.length) return c.json({ notifications: [], now });
   const sinceMs = Date.parse(String(body?.since ?? ""));
   const floor = Date.now() - NOTIFY_WINDOW_MS;
@@ -530,30 +562,45 @@ app.post("/notifications", async (c) => {
 
   const { data: owners } = await supabase
     .from("owners")
-    .select("item_id, token_hash")
-    .eq("kind", "thought")
+    .select("item_id, kind, token_hash")
     .in("item_id", entries.map(([id]) => id));
-  const hashes = new Map((owners ?? []).map((o) => [o.item_id as string, o.token_hash as string]));
-  const mine: string[] = [];
+  const byItem = new Map((owners ?? []).map((o) => [o.item_id as string, o]));
+  const myThoughts: string[] = [];
+  const myReplies: string[] = [];
   for (const [id, token] of entries) {
-    const hash = hashes.get(id);
-    if (hash && safeEqual(await sha256Hex(token), hash)) mine.push(id);
+    const o = byItem.get(id);
+    if (!o || !safeEqual(await sha256Hex(token), o.token_hash)) continue;
+    (o.kind === "thought" ? myThoughts : myReplies).push(id);
   }
-  if (!mine.length) return c.json({ notifications: [], now });
+  if (!myThoughts.length && !myReplies.length) return c.json({ notifications: [], now });
 
-  const [{ data: thoughts }, { data: replies }, demo] = await Promise.all([
-    supabase.from("thoughts").select("id, text, author_id").in("id", mine).eq("hidden", false),
-    supabase
-      .from("replies")
-      .select("id, thought_id, type, content, is_ai, author_id, created_at")
-      .in("thought_id", mine)
-      .gt("created_at", since)
-      .order("created_at", { ascending: true })
-      .limit(50),
+  const none = { data: [] as Record<string, any>[] };
+  const [{ data: thoughts }, { data: replies }, { data: thanked }, demo] = await Promise.all([
+    myThoughts.length
+      ? supabase.from("thoughts").select("id, text, author_id").in("id", myThoughts).eq("hidden", false)
+      : none,
+    myThoughts.length
+      ? supabase
+        .from("replies")
+        .select("id, thought_id, type, content, is_ai, author_id, created_at")
+        .in("thought_id", myThoughts)
+        .gt("created_at", since)
+        .order("created_at", { ascending: true })
+        .limit(50)
+      : none,
+    myReplies.length
+      ? supabase
+        .from("replies")
+        .select("id, thought_id, type, content, thanked_at, thoughts!inner(text, hidden)")
+        .in("id", myReplies)
+        .gt("thanked_at", since)
+        .eq("thoughts.hidden", false)
+        .limit(20)
+      : none,
     demoEnabled(),
   ]);
   const byId = new Map((thoughts ?? []).map((t) => [t.id as string, t]));
-  const notifications = (replies ?? [])
+  const replyNotes = (replies ?? [])
     .filter((r) => {
       const t = byId.get(r.thought_id);
       if (!t) return false;
@@ -561,16 +608,29 @@ app.post("/notifications", async (c) => {
       if (!demo && r.author_id?.startsWith("demo_")) return false; // same rule as the feed
       return true;
     })
-    .slice(-20)
     .map((r) => ({
-      thoughtId: r.thought_id,
-      thoughtText: byId.get(r.thought_id)!.text,
-      replyId: r.id,
-      type: r.type,
-      isAI: r.is_ai,
+      kind: "reply" as const,
+      thoughtId: r.thought_id as string,
+      thoughtText: byId.get(r.thought_id)!.text as string,
+      replyId: r.id as string,
+      type: r.type as string,
+      isAI: !!r.is_ai,
       preview: r.type === "note" || r.type === "voice" ? String(r.content).slice(0, 120) : "",
-      timestamp: r.created_at,
+      timestamp: r.created_at as string,
     }));
+  const thanksNotes = (thanked ?? []).map((r) => ({
+    kind: "thanks" as const,
+    thoughtId: r.thought_id as string,
+    thoughtText: String((r.thoughts as { text?: string } | null)?.text ?? ""),
+    replyId: r.id as string,
+    type: r.type as string,
+    isAI: false,
+    preview: r.type === "note" || r.type === "voice" ? String(r.content).slice(0, 120) : "",
+    timestamp: r.thanked_at as string,
+  }));
+  const notifications = [...replyNotes, ...thanksNotes]
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+    .slice(-20);
   return c.json({ notifications, now });
 });
 

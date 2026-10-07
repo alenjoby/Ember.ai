@@ -12,6 +12,7 @@ export interface ThoughtResponse {
   drawingData?: string;     // Storage URL or data URL
   audioUrl?: string;        // Storage URL
   authorId?: string;        // anonymous id from localStorage
+  thanked?: boolean;        // the lantern's author sent this reply a thank-you heart
 }
 
 export interface Lantern {

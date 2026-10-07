@@ -63,8 +63,8 @@ export const api = {
       });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) return data;
-        if (Array.isArray(data) && data.length === 0) return fixtureThoughts as unknown as Thought[];
+        // The example lanterns live in the database now (always visible), so an empty sky is real.
+        if (Array.isArray(data)) return data;
       }
     } catch (err) {
       console.warn('Direct feed read failed, trying the edge function:', err);
@@ -76,9 +76,7 @@ export const api = {
       });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data)) {
-          return data.length > 0 ? data : (fixtureThoughts as unknown as Thought[]);
-        }
+        if (Array.isArray(data)) return data;
       }
     } catch (err) {
       console.warn('API getThoughts failed or server not ready, using fixtures as fallback:', err);
@@ -199,6 +197,25 @@ export const api = {
       return res.status === 204 || res.ok;
     } catch (err) {
       console.error('Delete reply failed:', err);
+      return false;
+    }
+  },
+
+  /**
+   * Thank a reply on your own lantern (proven with the lantern's owner token). The replier
+   * gets a "Your words helped someone" notification.
+   */
+  async thankReply(thoughtId: string, replyId: string): Promise<boolean> {
+    const token = getOwnerToken(thoughtId);
+    if (!token) return false;
+    try {
+      const res = await fetch(`${SERVER_URL}/thoughts/${thoughtId}/replies/${replyId}/thanks`, {
+        method: 'POST',
+        headers: getHeaders(token),
+      });
+      return res.ok;
+    } catch (err) {
+      console.error('Thank reply failed:', err);
       return false;
     }
   },
