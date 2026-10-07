@@ -1,7 +1,7 @@
 // Server-side moderation: rules (always) + Gemini (when available).
 // Never default to "allowed" when the AI check fails: fall back to the rules.
 import { detectNegativity, messageFor, type SafeSpaceResult, type Severity } from "./safeSpace.ts";
-import { bytesToBase64, fenced, gemini, generate, parseJsonLoose } from "./llm.ts";
+import { bytesToBase64, fenced, gemini, geminiHedged, generate, parseJsonLoose } from "./llm.ts";
 
 export interface ModerationResult {
   allowed: boolean;
@@ -103,7 +103,8 @@ export async function moderateVoice(
 ): Promise<ModerationResult & { transcript: string }> {
   let raw: Record<string, unknown>;
   try {
-    const out = await gemini(
+    // Hedged: a second model starts if the first hasn't answered in 4 s (first answer wins).
+    const out = await geminiHedged(
       [
         { inline_data: { mime_type: mimeType, data: bytesToBase64(audio) } },
         {
@@ -113,7 +114,7 @@ First transcribe the audio exactly, then check the transcript.
 Return JSON only: {"transcript": string, "allowed": boolean, "isCrisis": boolean, "severity": "clean"|"mild"|"moderate"|"severe", "reason": string}`,
         },
       ],
-      { json: true, timeoutMs: 25000, maxOutputTokens: 1024 },
+      { json: true, timeoutMs: 25000, maxOutputTokens: 1024, hedgeMs: 4000 },
     );
     raw = parseJsonLoose(out) as Record<string, unknown>;
   } catch (err) {

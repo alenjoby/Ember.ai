@@ -113,6 +113,53 @@ export async function gemini(parts: Part[], opts: GenerateOptions): Promise<stri
   throw new Error(`Gemini failed: ${errors.join(" | ").slice(0, 400)}`);
 }
 
+/**
+ * Like gemini(), but if a model hasn't answered within `hedgeMs` the next one starts in parallel
+ * and the first answer wins. Gemini's latency on the same audio varies a lot (3 to 12 s in one
+ * test), so this cuts the slow tail for voice notes at the cost of an occasional extra call.
+ */
+export async function geminiHedged(parts: Part[], opts: GenerateOptions & { hedgeMs: number }): Promise<string> {
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) throw new AiUnavailableError();
+  const list = models().filter((m) => (restingUntil.get(m) ?? 0) <= Date.now());
+  if (!list.length) throw new Error("Gemini failed: all models resting after recent errors");
+  const deadline = Date.now() + opts.timeoutMs;
+  const errors: string[] = [];
+
+  return await new Promise<string>((resolve, reject) => {
+    let next = 0;
+    let running = 0;
+    let settled = false;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(timer);
+      fn();
+    };
+    const launch = () => {
+      const remaining = deadline - Date.now();
+      if (settled || next >= list.length || remaining < 800) {
+        if (!running) finish(() => reject(new Error(`Gemini failed: ${errors.join(" | ").slice(0, 400)}`)));
+        return;
+      }
+      const model = list[next++];
+      running++;
+      callModel(model, apiKey, parts, opts, remaining).then(
+        (text) => finish(() => resolve(text)),
+        (err) => {
+          running--;
+          if (err instanceof RetryableError && err.restMs) restingUntil.set(model, Date.now() + err.restMs);
+          errors.push((err as Error).message);
+          launch(); // failed: try the next model right away
+        },
+      );
+    };
+    launch();
+    timer = setInterval(() => (next < list.length ? launch() : clearInterval(timer)), opts.hedgeMs);
+  });
+}
+
 // ─── Featherless (OpenAI-compatible) ────────────────────────────────
 
 async function featherless(prompt: string, opts: GenerateOptions, timeoutMs: number): Promise<string> {

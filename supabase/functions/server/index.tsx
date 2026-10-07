@@ -151,6 +151,8 @@ app.use(
 // Any successful write clears the shared GET /thoughts cache (see below).
 app.use("*", async (c, next) => {
   await next();
+  // POST /notifications only reads (it's a POST to keep owner tokens out of URLs).
+  if (c.req.path.endsWith("/notifications")) return;
   if (c.req.method !== "GET" && c.req.method !== "OPTIONS" && c.res.status < 300) invalidateThoughtsCache();
 });
 
@@ -404,10 +406,15 @@ app.post(
         if (Number.isFinite(duration) && duration > MAX_VOICE_SECONDS + 1) {
           return fail(c, 413, "too_long", "That's a bit too long. Voice notes can be up to a minute.");
         }
+        // Upload while the check runs (saves the upload time); the file is removed if it's refused.
+        const upload = uploadMedia(`voice/${crypto.randomUUID()}.${VOICE_TYPES[media.mime]}`, media.bytes, media.mime)
+          .then((url) => ({ url }), (err: Error) => ({ err }));
+        const discard = () => upload.then((u) => ("url" in u ? removeMedia([u.url]) : undefined));
         let verdict;
         try {
           verdict = await moderateVoice(media.bytes, media.mime);
         } catch (err) {
+          background("media", discard());
           if (err instanceof AiUnavailableError) {
             return fail(c, 503, "ai_unavailable", "Voice replies are resting right now. Try a note?");
           }
@@ -416,12 +423,13 @@ app.post(
           }
           throw err;
         }
-        if (!verdict.allowed) return blocked(c, verdict.reason, verdict.severity as "mild");
-        const audioUrl = await uploadMedia(
-          `voice/${crypto.randomUUID()}.${VOICE_TYPES[media.mime]}`,
-          media.bytes,
-          media.mime,
-        );
+        if (!verdict.allowed) {
+          background("media", discard());
+          return blocked(c, verdict.reason, verdict.severity as "mild");
+        }
+        const uploaded = await upload;
+        if ("err" in uploaded) throw uploaded.err;
+        const audioUrl = uploaded.url;
         Object.assign(insert, { type: "voice", content: verdict.transcript, audio_url: audioUrl });
         break;
       }
@@ -499,6 +507,70 @@ app.post("/moderate", async (c) => {
   if (!text) return c.json({ allowed: true, severity: "clean", reason: "", isCrisis: false });
   if (text.length > MAX_TEXT) return fail(c, 400, "invalid_text", `Keep it under ${MAX_TEXT} characters.`);
   return c.json(await moderateText(text, !(await demoEnabled())));
+});
+
+// Notifications: new replies to the caller's own lanterns, for the "someone answered you" popup.
+// The browser sends the owner tokens it got when releasing them ({ thoughtId: ownerToken }), so
+// only the real author sees them. Replies by the author themself are left out; Ember's are
+// included (isAI) so the popup can say "Ember answered".
+const MAX_NOTIFY_THOUGHTS = 100;
+const NOTIFY_WINDOW_MS = 24 * 60 * 60 * 1000;
+app.post("/notifications", async (c) => {
+  const now = new Date().toISOString(); // before the queries, so nothing slips between two polls
+  const body = await readJson(c);
+  const owned = body?.owned && typeof body.owned === "object" ? body.owned as Record<string, unknown> : {};
+  const entries = Object.entries(owned)
+    .filter((e): e is [string, string] => UUID_RE.test(e[0]) && typeof e[1] === "string")
+    .slice(0, MAX_NOTIFY_THOUGHTS);
+  if (!entries.length) return c.json({ notifications: [], now });
+  const sinceMs = Date.parse(String(body?.since ?? ""));
+  const floor = Date.now() - NOTIFY_WINDOW_MS;
+  const since = new Date(Number.isFinite(sinceMs) ? Math.max(sinceMs, floor) : floor).toISOString();
+
+  const { data: owners } = await supabase
+    .from("owners")
+    .select("item_id, token_hash")
+    .eq("kind", "thought")
+    .in("item_id", entries.map(([id]) => id));
+  const hashes = new Map((owners ?? []).map((o) => [o.item_id as string, o.token_hash as string]));
+  const mine: string[] = [];
+  for (const [id, token] of entries) {
+    const hash = hashes.get(id);
+    if (hash && safeEqual(await sha256Hex(token), hash)) mine.push(id);
+  }
+  if (!mine.length) return c.json({ notifications: [], now });
+
+  const [{ data: thoughts }, { data: replies }, demo] = await Promise.all([
+    supabase.from("thoughts").select("id, text, author_id").in("id", mine).eq("hidden", false),
+    supabase
+      .from("replies")
+      .select("id, thought_id, type, content, is_ai, author_id, created_at")
+      .in("thought_id", mine)
+      .gt("created_at", since)
+      .order("created_at", { ascending: true })
+      .limit(50),
+    demoEnabled(),
+  ]);
+  const byId = new Map((thoughts ?? []).map((t) => [t.id as string, t]));
+  const notifications = (replies ?? [])
+    .filter((r) => {
+      const t = byId.get(r.thought_id);
+      if (!t) return false;
+      if (r.author_id && r.author_id === t.author_id) return false; // the author's own reply
+      if (!demo && r.author_id?.startsWith("demo_")) return false; // same rule as the feed
+      return true;
+    })
+    .slice(-20)
+    .map((r) => ({
+      thoughtId: r.thought_id,
+      thoughtText: byId.get(r.thought_id)!.text,
+      replyId: r.id,
+      type: r.type,
+      isAI: r.is_ai,
+      preview: r.type === "note" || r.type === "voice" ? String(r.content).slice(0, 120) : "",
+      timestamp: r.created_at,
+    }));
+  return c.json({ notifications, now });
 });
 
 // Helpline for the viewer's country
