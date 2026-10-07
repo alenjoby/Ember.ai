@@ -6,6 +6,7 @@ import { bodyLimit } from "npm:hono@4/body-limit";
 import { decodeBase64 } from "jsr:@std/encoding@1/base64";
 import {
   EMOTIONS,
+  MEDIA_BUCKET,
   pickPosition,
   removeMedia,
   type ReplyRow,
@@ -317,6 +318,35 @@ app.delete("/thoughts/:id", async (c) => {
   background("media", removeMedia((replies ?? []).flatMap((r) => [r.audio_url, r.drawing_url])));
   return c.body(null, 204);
 });
+
+// Admin: wipe the sky. Every thought (replies cascade), every owner token, and every uploaded
+// voice note, drawing and Ember voice reply. The demo-voice cache stays (it is reused, not user data).
+app.delete("/thoughts", async (c) => {
+  if (!(await verifyAdminToken(c.req.header("X-Admin-Token")))) {
+    return fail(c, 403, "forbidden", "Only an admin can clear the sky.");
+  }
+  const { count, error } = await supabase.from("thoughts").delete({ count: "exact" }).not("id", "is", null);
+  if (error) throw new Error(error.message);
+  await supabase.from("owners").delete().not("item_id", "is", null);
+  background("media", removeFolders(["voice", "drawing", "ai"]));
+  return c.json({ deleted: count ?? 0 });
+});
+
+async function removeFolders(folders: string[]) {
+  const bucket = supabase.storage.from(MEDIA_BUCKET);
+  for (const folder of folders) {
+    // list() returns at most `limit` files; removing them shrinks the list, so keep going until empty.
+    for (let round = 0; round < 50; round++) {
+      const { data, error } = await bucket.list(folder, { limit: 1000 });
+      if (error || !data?.length) break;
+      const { error: rmError } = await bucket.remove(data.map((f) => `${folder}/${f.name}`));
+      if (rmError) {
+        console.warn(`[media] wipe ${folder} failed:`, rmError.message);
+        break;
+      }
+    }
+  }
+}
 
 // Add a reply. Media bodies are base64 JSON: cap the raw body a little above 2 MB * 4/3.
 app.post(
