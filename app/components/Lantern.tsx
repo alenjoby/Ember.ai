@@ -501,7 +501,9 @@ export function Lantern({
             <motion.div
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: [0.6, 1, 0.6], y: 0 }}
-              exit={{ opacity: 0 }}
+              // Own transition: the infinite pulse below would otherwise apply to the exit too,
+              // so it never finished and the label stayed after Ember's reply arrived.
+              exit={{ opacity: 0, transition: { duration: 0.3 } }}
               transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
               className="mt-1 flex items-center gap-1 text-[11px] text-[#FFB347] font-serif italic"
             >
