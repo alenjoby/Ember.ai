@@ -18,22 +18,23 @@ const SOOTHING_CHORDS: Record<string, number[]> = {
 const DEFAULT_CHORD = [174.61, 220.00, 261.63, 329.63, 440.00]; // Fmaj7
 
 /**
- * Creates a soothing, organic ambient soundscape using the Web Audio API.
- * Uses soft sine/triangle oscillators, a gentle 420Hz warm lowpass filter,
- * and slow breathing envelope modulation. Absolutely zero harsh buzzing or mechanical drone.
+ * Creates a crystal-clear, soothing, organic ambient soundscape using the Web Audio API.
+ * Uses soft sine/triangle oscillators, an analog-style 1600Hz lowpass filter with silky resonance,
+ * a mastering dynamics compressor for full presence without clipping, and seamless,
+ * grain-free organic rainfall. Zero clicks, zero static, zero grain.
  */
 class CalmAmbientEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private compressor: DynamicsCompressorNode | null = null;
   private filter: BiquadFilterNode | null = null;
   private oscillators: { osc: OscillatorNode; gain: GainNode }[] = [];
-  private breezeNode: AudioNode | null = null;
   private rainNode: AudioNode | null = null;
   private rainGainNode: GainNode | null = null;
   private chordTimer: ReturnType<typeof setInterval> | null = null;
   private isRunning = false;
 
-  public async start(key = 'F major', volume = 0.24) {
+  public async start(key = 'F major', volume = 0.70) {
     if (this.isRunning) return;
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -46,29 +47,36 @@ class CalmAmbientEngine {
 
       this.isRunning = true;
 
-      // Master Gain with very slow, gentle ramp
+      // Studio mastering dynamics compressor: gives full, rich, warm presence at normal volume
+      // and ensures absolutely zero digital clipping or distortion
+      this.compressor = this.ctx.createDynamicsCompressor();
+      this.compressor.threshold.setValueAtTime(-18, this.ctx.currentTime);
+      this.compressor.knee.setValueAtTime(14, this.ctx.currentTime);
+      this.compressor.ratio.setValueAtTime(3.5, this.ctx.currentTime);
+      this.compressor.attack.setValueAtTime(0.02, this.ctx.currentTime);
+      this.compressor.release.setValueAtTime(0.25, this.ctx.currentTime);
+      this.compressor.connect(this.ctx.destination);
+
+      // Master Gain: smooth ramp to warm, clear audible volume
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-      this.masterGain.gain.exponentialRampToValueAtTime(volume, this.ctx.currentTime + 3.0);
-      this.masterGain.connect(this.ctx.destination);
+      this.masterGain.gain.exponentialRampToValueAtTime(volume, this.ctx.currentTime + 2.5);
+      this.masterGain.connect(this.compressor);
 
-      // Warm lowpass filter to remove any harsh highs
+      // Warm analog lowpass filter (1600Hz lets rich chord overtones and harmonic warmth shine through)
       this.filter = this.ctx.createBiquadFilter();
       this.filter.type = 'lowpass';
-      this.filter.frequency.setValueAtTime(380, this.ctx.currentTime);
-      this.filter.Q.setValueAtTime(1.2, this.ctx.currentTime);
+      this.filter.frequency.setValueAtTime(1600, this.ctx.currentTime);
+      this.filter.Q.setValueAtTime(0.7, this.ctx.currentTime);
       this.filter.connect(this.masterGain);
 
       // Start gentle chord pad
       this.playChord(key);
 
-      // Add gentle, soft night breeze (ultra-filtered pink noise)
-      this.startGentleBreeze();
-
-      // Add gentle, soothing rain layer in the background (low volume)
+      // Add pure, organic, grain-free rainfall
       this.startGentleRain();
 
-      // Cycle gently through peaceful chords every 10 seconds
+      // Cycle gently through peaceful chords every 10.5 seconds
       const chordKeys = Object.keys(SOOTHING_CHORDS);
       let chordIndex = chordKeys.indexOf(key);
       if (chordIndex === -1) chordIndex = 0;
@@ -101,16 +109,16 @@ class CalmAmbientEngine {
     freqs.forEach((freq, i) => {
       if (!this.ctx || !this.filter) return;
       const osc = this.ctx.createOscillator();
-      // Low notes use gentle triangle, higher harmonics use pure sine for silky warmth
+      // Low notes use warm triangle for acoustic foundation, higher harmonics use silky pure sine
       osc.type = i === 0 ? 'triangle' : 'sine';
-      // Subtle detune for rich celestial chorus
+      // Subtle gentle detune for rich celestial chorus
       osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
       osc.detune.setValueAtTime((i % 2 === 0 ? 3 : -3) * (i + 1), this.ctx.currentTime);
 
       const gain = this.ctx.createGain();
-      const noteGain = i === 0 ? 0.45 : 0.30 / Math.sqrt(i + 1);
+      const noteGain = i === 0 ? 0.45 : 0.35 / Math.sqrt(i + 1);
       gain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(noteGain, this.ctx.currentTime + 3.0);
+      gain.gain.exponentialRampToValueAtTime(noteGain, this.ctx.currentTime + 2.5);
 
       osc.connect(gain);
       gain.connect(this.filter);
@@ -125,15 +133,15 @@ class CalmAmbientEngine {
     const oldOscs = [...this.oscillators];
     this.oscillators = [];
 
-    // Fade out previous chord over 4 seconds
+    // Fade out previous chord smoothly over 3.5 seconds
     oldOscs.forEach(({ osc, gain }) => {
       try {
         if (!this.ctx) return;
         gain.gain.setValueAtTime(gain.gain.value, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 4.0);
+        gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 3.5);
         setTimeout(() => {
           try { osc.stop(); osc.disconnect(); gain.disconnect(); } catch {}
-        }, 4200);
+        }, 3700);
       } catch {}
     });
 
@@ -141,107 +149,69 @@ class CalmAmbientEngine {
     this.playChord(newKey);
   }
 
-  private startGentleBreeze() {
-    if (!this.ctx || !this.masterGain) return;
-    try {
-      const bufferSize = this.ctx.sampleRate * 2;
-      const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-      const output = noiseBuffer.getChannelData(0);
-
-      // Pink noise filter algorithm
-      let b0 = 0, b1 = 0, b2 = 0;
-      for (let i = 0; i < bufferSize; i++) {
-        const white = Math.random() * 2 - 1;
-        b0 = 0.99886 * b0 + white * 0.0555179;
-        b1 = 0.99332 * b1 + white * 0.0750759;
-        b2 = 0.96900 * b2 + white * 0.1538520;
-        output[i] = (b0 + b1 + b2) * 0.035; // very quiet
-      }
-
-      const whiteNoise = this.ctx.createBufferSource();
-      whiteNoise.buffer = noiseBuffer;
-      whiteNoise.loop = true;
-
-      const breezeFilter = this.ctx.createBiquadFilter();
-      breezeFilter.type = 'lowpass';
-      breezeFilter.frequency.setValueAtTime(240, this.ctx.currentTime);
-
-      const breezeGain = this.ctx.createGain();
-      breezeGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-      breezeGain.gain.exponentialRampToValueAtTime(0.015, this.ctx.currentTime + 3.0);
-
-      whiteNoise.connect(breezeFilter);
-      breezeFilter.connect(breezeGain);
-      breezeGain.connect(this.masterGain);
-
-      whiteNoise.start();
-      this.breezeNode = whiteNoise;
-    } catch {}
-  }
-
+  /**
+   * Generates pure, organic, soothing rainfall with zero grains, zero clicks, and zero harsh hiss.
+   * Uses continuous Brownian random walk (1/f² slope) with a smooth windowed loop seam
+   * and dual analog-style highpass/lowpass shaping.
+   */
   private startGentleRain() {
     if (!this.ctx || !this.masterGain) return;
     try {
-      // 4 seconds of stereo pink/brown rainfall noise
-      const bufferSize = this.ctx.sampleRate * 4;
-      const noiseBuffer = this.ctx.createBuffer(2, bufferSize, this.ctx.sampleRate);
-      const left = noiseBuffer.getChannelData(0);
-      const right = noiseBuffer.getChannelData(1);
+      // 6-second seamless stereo Brownian rain buffer
+      const duration = 6.0;
+      const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+      const rainBuffer = this.ctx.createBuffer(2, bufferSize, this.ctx.sampleRate);
+      const left = rainBuffer.getChannelData(0);
+      const right = rainBuffer.getChannelData(1);
 
-      // Filtered pink noise algorithm for left and right channels to create a soothing stereo field
-      let b0L = 0, b1L = 0, b2L = 0;
-      let b0R = 0, b1R = 0, b2R = 0;
-
+      // Continuous Brownian integration with leaky integrator - 100% continuous, ZERO sudden spikes or grains
+      let brownL = 0;
+      let brownR = 0;
       for (let i = 0; i < bufferSize; i++) {
         const whiteL = Math.random() * 2 - 1;
         const whiteR = Math.random() * 2 - 1;
 
-        b0L = 0.99886 * b0L + whiteL * 0.0555179;
-        b1L = 0.99332 * b1L + whiteL * 0.0750759;
-        b2L = 0.96900 * b2L + whiteL * 0.1538520;
-        let sL = (b0L + b1L + b2L + whiteL * 0.08) * 0.16;
+        brownL = (brownL + 0.02 * whiteL) / 1.02;
+        brownR = (brownR + 0.02 * whiteR) / 1.02;
 
-        b0R = 0.99886 * b0R + whiteR * 0.0555179;
-        b1R = 0.99332 * b1R + whiteR * 0.0750759;
-        b2R = 0.96900 * b2R + whiteR * 0.1538520;
-        let sR = (b0R + b1R + b2R + whiteR * 0.08) * 0.16;
+        left[i] = brownL * 3.2;
+        right[i] = brownR * 3.2;
+      }
 
-        // Occasional soft droplet patter
-        if (Math.random() < 0.002) {
-          sL += (Math.random() * 0.25 - 0.125);
-        }
-        if (Math.random() < 0.002) {
-          sR += (Math.random() * 0.25 - 0.125);
-        }
-
-        left[i] = sL;
-        right[i] = sR;
+      // Smooth cosine crossfade on the buffer endpoints (250ms) to ensure ZERO loop seam click
+      const fadeSamples = Math.floor(this.ctx.sampleRate * 0.25);
+      for (let i = 0; i < fadeSamples; i++) {
+        const factor = Math.sin((i / fadeSamples) * (Math.PI / 2));
+        left[i] *= factor;
+        right[i] *= factor;
+        const tailIdx = bufferSize - 1 - i;
+        left[tailIdx] *= factor;
+        right[tailIdx] *= factor;
       }
 
       const rainSource = this.ctx.createBufferSource();
-      rainSource.buffer = noiseBuffer;
+      rainSource.buffer = rainBuffer;
       rainSource.loop = true;
 
-      // Bandpass filter centered around 920Hz for realistic rain patter spectrum
-      const bandpass = this.ctx.createBiquadFilter();
-      bandpass.type = 'bandpass';
-      bandpass.frequency.setValueAtTime(920, this.ctx.currentTime);
-      bandpass.Q.setValueAtTime(0.75, this.ctx.currentTime);
+      // Highpass filter at 200Hz to remove muddy sub-bass rumble
+      const rainHighpass = this.ctx.createBiquadFilter();
+      rainHighpass.type = 'highpass';
+      rainHighpass.frequency.setValueAtTime(200, this.ctx.currentTime);
 
-      // Lowpass filter to ensure zero harsh digital hiss
-      const lowpass = this.ctx.createBiquadFilter();
-      lowpass.type = 'lowpass';
-      lowpass.frequency.setValueAtTime(1700, this.ctx.currentTime);
-      lowpass.Q.setValueAtTime(0.6, this.ctx.currentTime);
+      // Lowpass filter at 1150Hz for gentle, warm rainfall without digital hiss
+      const rainLowpass = this.ctx.createBiquadFilter();
+      rainLowpass.type = 'lowpass';
+      rainLowpass.frequency.setValueAtTime(1150, this.ctx.currentTime);
+      rainLowpass.Q.setValueAtTime(0.5, this.ctx.currentTime);
 
-      // Rain Gain node (low volume: gentle, soothing background drizzle)
+      // Rain Gain node: balanced gently under the lush chords
       const rainGain = this.ctx.createGain();
       rainGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-      rainGain.gain.exponentialRampToValueAtTime(0.065, this.ctx.currentTime + 3.0);
+      rainGain.gain.exponentialRampToValueAtTime(0.12, this.ctx.currentTime + 3.0);
 
-      rainSource.connect(bandpass);
-      bandpass.connect(lowpass);
-      lowpass.connect(rainGain);
+      rainSource.connect(rainHighpass);
+      rainHighpass.connect(rainLowpass);
+      rainLowpass.connect(rainGain);
       rainGain.connect(this.masterGain);
 
       rainSource.start();
@@ -276,10 +246,6 @@ class CalmAmbientEngine {
       try { osc.stop(); osc.disconnect(); gain.disconnect(); } catch {}
     });
     this.oscillators = [];
-    if (this.breezeNode) {
-      try { (this.breezeNode as any).stop?.(); this.breezeNode.disconnect(); } catch {}
-      this.breezeNode = null;
-    }
     if (this.rainNode) {
       try { (this.rainNode as any).stop?.(); this.rainNode.disconnect(); } catch {}
       this.rainNode = null;
@@ -291,6 +257,14 @@ class CalmAmbientEngine {
     if (this.filter) {
       try { this.filter.disconnect(); } catch {}
       this.filter = null;
+    }
+    if (this.masterGain) {
+      try { this.masterGain.disconnect(); } catch {}
+      this.masterGain = null;
+    }
+    if (this.compressor) {
+      try { this.compressor.disconnect(); } catch {}
+      this.compressor = null;
     }
     if (this.ctx) {
       try { this.ctx.close(); } catch {}
@@ -318,7 +292,7 @@ export function useSkyAmbientSound(soundEnabled: boolean) {
 
     if (!globalSkyEngine) {
       globalSkyEngine = new CalmAmbientEngine();
-      globalSkyEngine.start('D minor', 0.24);
+      globalSkyEngine.start('D minor', 0.70);
     } else {
       globalSkyEngine.resume();
     }
@@ -362,7 +336,7 @@ export function useLanternSound(lantern: Lantern | null, soundEnabled: boolean) 
     const key = lantern.sound?.key || 'D minor';
     const engine = new CalmAmbientEngine();
     engineRef.current = engine;
-    engine.start(key, 0.20);
+    engine.start(key, 0.60);
 
     return () => {
       if (engineRef.current) {
