@@ -521,7 +521,8 @@ app.post("/notifications", async (c) => {
   const owned = body?.owned && typeof body.owned === "object" ? body.owned as Record<string, unknown> : {};
   const entries = Object.entries(owned)
     .filter((e): e is [string, string] => UUID_RE.test(e[0]) && typeof e[1] === "string")
-    .slice(0, MAX_NOTIFY_THOUGHTS);
+    // The browser adds tokens as it goes (reply tokens too), so the newest are last: keep those.
+    .slice(-MAX_NOTIFY_THOUGHTS);
   if (!entries.length) return c.json({ notifications: [], now });
   const sinceMs = Date.parse(String(body?.since ?? ""));
   const floor = Date.now() - NOTIFY_WINDOW_MS;
