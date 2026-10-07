@@ -1,8 +1,9 @@
-// Ember.ai demo film (~2 min). Motion graphics + real recordings of the app (video/out).
+// Ember.ai demo film (~2 min). Motion graphics + real recordings of the app (video/out),
+// plus three shots made in Raylight (intro, lantern release, outro) in public/raylight-*.mp4.
 // Structure follows the film prompt: hook → problem → turn/logo → features (real app) → crisis →
 // fades in 24h → proof → close with helplines.
 import React from 'react';
-import { AbsoluteFill, Audio, interpolate, Series, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Audio, interpolate, OffthreadVideo, Series, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { AppClip, C, Fade, Lantern, Line, PALETTES, sans, serif, Sky, Title, TypeText } from './ui';
 
 export const FPS = 30;
@@ -208,17 +209,26 @@ const Close: React.FC = () => {
   );
 };
 
+/** A full-frame shot exported from Raylight (public/raylight-*.mp4), with its own sound. */
+const RaylightShot: React.FC<{ src: string; dur: number }> = ({ src, dur }) => (
+  <Fade dur={dur} inF={8} outF={8}>
+    <OffthreadVideo src={staticFile(src)} style={{ width: '100%', height: '100%' }} />
+  </Fade>
+);
+
 // ─── the film ───────────────────────────────────────────────────────
 
 const SCENES: { dur: number; el: React.ReactNode }[] = [
+  { dur: s(3.6), el: <RaylightShot src="raylight-intro.mp4" dur={s(3.6)} /> },
   { dur: s(6.5), el: <Hook /> },
   { dur: s(14), el: <Problem /> },
   { dur: s(10), el: <Turn /> },
+  { dur: s(10), el: <RaylightShot src="raylight-lantern.mp4" dur={s(10)} /> },
+  { dur: s(8), el: <LanternShowcase /> },
   {
     dur: s(12), el: <AppClip src="03-release.mp4" from={3} dur={s(12)} label="Release a feeling"
       caption="Anonymous. No profiles. No likes. No followers." />,
   },
-  { dur: s(8), el: <LanternShowcase /> },
   {
     dur: s(12), el: <AppClip src="02-sky.mp4" from={1} dur={s(12)} label="Constellations"
       caption="Feelings like yours, connected. Live, in real time." />,
@@ -252,6 +262,7 @@ const SCENES: { dur: number; el: React.ReactNode }[] = [
   { dur: s(6), el: <Dawn /> },
   { dur: s(10), el: <Proof /> },
   { dur: s(13), el: <Close /> },
+  { dur: s(4), el: <RaylightShot src="raylight-outro.mp4" dur={s(4)} /> },
 ];
 
 export const FILM_FRAMES = SCENES.reduce((n, sc) => n + sc.dur, 0);
