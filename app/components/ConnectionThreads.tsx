@@ -63,19 +63,17 @@ export const ConnectionThreads = React.memo(React.forwardRef<ConnectionThreadsHa
 
     for (let i = 0; i < thoughts.length; i++) {
       const a = thoughts[i];
-      if (!a.emotion) continue;
 
-      // Find peers with the same emotion (scale down peer count when density is high).
-      // Pair by the server-placed "home" position, not the dragged one: dragging a lantern far
-      // away then stretches its threads instead of cutting it off from its group.
+      // Find peers: if 'a' has an emotion, connect to peers with the same emotion.
+      // If 'a' has no emotion (unnamed / crisis post), connect to other lanterns without a feeling.
       const maxPeers = thoughts.length > 20 ? 1 : 2;
       const home = (t: Thought) => ({
         x: (t as Thought & { homeX?: number }).homeX ?? t.x ?? 0,
         y: (t as Thought & { homeY?: number }).homeY ?? t.y ?? 0,
       });
       const ah = home(a);
-      const sameEmotionPeers = thoughts
-        .filter(b => b.id !== a.id && b.emotion === a.emotion)
+      const peers = thoughts
+        .filter(b => b.id !== a.id && (a.emotion ? b.emotion === a.emotion : !b.emotion))
         .map(b => {
           const bh = home(b);
           const dx = ah.x - bh.x;
@@ -85,7 +83,7 @@ export const ConnectionThreads = React.memo(React.forwardRef<ConnectionThreadsHa
         .sort((p1, p2) => p1.distSq - p2.distSq)
         .slice(0, maxPeers);
 
-      for (const { peer: b } of sameEmotionPeers) {
+      for (const { peer: b } of peers) {
         const key = [a.id, b.id].sort().join('__');
         if (map.has(key)) continue;
 
@@ -98,7 +96,10 @@ export const ConnectionThreads = React.memo(React.forwardRef<ConnectionThreadsHa
         const by = (b.y || 0) + STICK_KNOT_Y;
 
         const path = threadPath(ax, ay, bx, by);
-        const color = a.lantern?.palette?.[0] || EMOTION_COLORS[a.emotion] || '#d66a3e';
+        // Lanterns without a feeling connect with a warm ember-coloured thread (#D66A3E)
+        const color = a.emotion
+          ? (a.lantern?.palette?.[0] || EMOTION_COLORS[a.emotion] || '#D66A3E')
+          : (a.lantern?.palette?.[0] || '#D66A3E');
 
         // Organic duration for traveling pulse between 5s and 9s
         const charSum = (a.id + b.id).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
@@ -108,7 +109,7 @@ export const ConnectionThreads = React.memo(React.forwardRef<ConnectionThreadsHa
           key,
           fromId: a.id,
           toId: b.id,
-          emotion: a.emotion,
+          emotion: a.emotion || '',
           color,
           path,
           sparkDuration,
@@ -165,7 +166,7 @@ export const ConnectionThreads = React.memo(React.forwardRef<ConnectionThreadsHa
       </defs>
 
       {threads.map((th, index) => {
-        const isFocused = focusEmotion === th.emotion;
+        const isFocused = focusEmotion !== null && th.emotion !== '' && focusEmotion === th.emotion;
         const isDimmed = focusEmotion !== null && !isFocused;
         const isConnectedToHover = hoveredThoughtId === th.fromId || hoveredThoughtId === th.toId;
         const isConnectedToSelected = selectedThoughtId === th.fromId || selectedThoughtId === th.toId;

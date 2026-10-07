@@ -1147,8 +1147,11 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
   };
 
   const sameFeelingCount = useMemo(() => {
-    if (!allThoughts || !thought.emotion) return 0;
-    return allThoughts.filter(t => !t.isExample && t.id !== thought.id && t.emotion === thought.emotion).length;
+    if (!allThoughts) return 0;
+    if (thought.emotion) {
+      return allThoughts.filter(t => !t.isExample && t.id !== thought.id && t.emotion === thought.emotion).length;
+    }
+    return allThoughts.filter(t => !t.isExample && t.id !== thought.id && !t.emotion).length;
   }, [allThoughts, thought.id, thought.emotion]);
 
   // Hook up Tone.js soundscape for opened thought
@@ -1360,16 +1363,20 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
               </div>
 
               {/* Network Connection context from ember-network */}
-              {thought.emotion && (
-                <div className="flex items-center gap-2 px-3 py-1 rounded-[12px] bg-white/[0.03] border border-white/[0.06] mb-3 relative z-10 w-fit">
-                  <span className="text-[#FFB347] text-xs">✦</span>
-                  <span className="text-[11.5px] text-[#ffd9c2]/90 tracking-wide" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
-                    {sameFeelingCount > 0
+              <div className="flex items-center gap-2 px-3 py-1 rounded-[12px] bg-white/[0.03] border border-white/[0.06] mb-3 relative z-10 w-fit">
+                <span className="text-[#FFB347] text-xs">✦</span>
+                <span className="text-[11.5px] text-[#ffd9c2]/90 tracking-wide" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
+                  {thought.emotion ? (
+                    sameFeelingCount > 0
                       ? `Connected to ${sameFeelingCount} other ${sameFeelingCount === 1 ? 'person' : 'people'} who felt ${thought.emotion} tonight.`
-                      : `The first ${thought.emotion} light tonight.`}
-                  </span>
-                </div>
-              )}
+                      : `The first ${thought.emotion} light tonight.`
+                  ) : (
+                    sameFeelingCount > 0
+                      ? `Connected to ${sameFeelingCount} other quiet ${sameFeelingCount === 1 ? 'light' : 'lights'} tonight.`
+                      : `Drifting quietly under the sky tonight.`
+                  )}
+                </span>
+              </div>
 
               {/* The Whisper content */}
               <p

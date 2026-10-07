@@ -745,6 +745,12 @@ export default function App() {
           setTimeout(() => {
             setNotAloneNotice(null);
           }, 7000);
+        } else {
+          const unlabelledCount = thoughtsRef.current.filter(t => !t.isExample && !t.emotion && t.id !== created.id).length;
+          setNotAloneNotice({ count: unlabelledCount, emotion: '' });
+          setTimeout(() => {
+            setNotAloneNotice(null);
+          }, 7000);
         }
 
         if (res.helpline) {
@@ -1262,9 +1268,15 @@ export default function App() {
           >
             <span className="w-2 h-2 rounded-full bg-[#D66A3E] animate-ping shrink-0" />
             <p className="text-[#f9f3eb] text-[13.5px] sm:text-[14.5px] font-medium tracking-wide whitespace-nowrap truncate" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
-              {notAloneNotice.count > 0 
-                ? `You're not alone · ${notAloneNotice.count} other${notAloneNotice.count === 1 ? '' : 's'} felt ${notAloneNotice.emotion} tonight`
-                : `Your lantern carries light for others feeling ${notAloneNotice.emotion} tonight`}
+              {notAloneNotice.emotion ? (
+                notAloneNotice.count > 0 
+                  ? `You're not alone · ${notAloneNotice.count} other${notAloneNotice.count === 1 ? '' : 's'} felt ${notAloneNotice.emotion} tonight`
+                  : `Your lantern carries light for others feeling ${notAloneNotice.emotion} tonight`
+              ) : (
+                notAloneNotice.count > 0
+                  ? `You're not alone · connected to ${notAloneNotice.count} other quiet light${notAloneNotice.count === 1 ? '' : 's'} tonight`
+                  : `Your lantern carries light · you are not alone tonight`
+              )}
             </p>
           </motion.div>
         )}
