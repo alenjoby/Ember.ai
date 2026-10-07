@@ -6,6 +6,7 @@ import {
 import type { Thought, ThoughtResponse } from '../App';
 import { Lantern } from './Lantern';
 import { ConnectionThreads, type ConnectionThreadsHandle } from './ConnectionThreads';
+import { getOwnerToken } from '../api';
 import { projectId, publicAnonKey } from '../../supabase/info';
 
 
@@ -930,7 +931,10 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
           {filteredThoughts.length > 0 && filteredThoughts.map(thought => {
             const isThoughtDimmed = focusEmotion !== null && thought.emotion !== focusEmotion;
             const thoughtAgeMs = Date.now() - new Date(thought.timestamp).getTime();
-            const isThoughtNew = thoughtAgeMs < 45000 && !thought.isExample;
+            // "your lantern" badge: only on lanterns THIS browser released (it holds their owner
+            // token). It used to go on every lantern younger than 45 s, so a friend's new lantern
+            // showed as yours.
+            const isThoughtNew = thoughtAgeMs < 45000 && !thought.isExample && !!getOwnerToken(thought.id);
 
             return (
               <ThoughtCard
