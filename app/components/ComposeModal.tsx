@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ComposeModalProps {
@@ -6,7 +6,7 @@ interface ComposeModalProps {
   onSubmit: (text: string, emotion?: string) => Promise<void> | void;
 }
 
-import { Cloud, Flower2, Waves, Sun, Droplet, Sparkles, Heart, Shield } from 'lucide-react';
+import { Cloud, Flower2, Waves, Sun, Droplet, Sparkles, Heart, Shield, Loader2 } from 'lucide-react';
 import { detectNegativity, Severity } from '../safeSpace';
 import { SafeSpaceGuard, SafeSpaceInline } from './SafeSpaceGuard';
 import { projectId, publicAnonKey } from '../../supabase/info';
@@ -29,6 +29,10 @@ function PaperLines() {
   );
 }
 
+// Shown in turn while the thought is checked and released (it takes a few seconds), so the
+// app never looks stuck.
+const RELEASE_STEPS = ['Reading it gently…', 'Lighting your lantern…', 'Almost there…'];
+
 const EMOTIONS = [
   { id: 'lonely', label: 'Lonely', icon: Cloud },
   { id: 'grateful', label: 'Grateful', icon: Flower2 },
@@ -48,6 +52,14 @@ export function ComposeModal({ onClose, onSubmit }: ComposeModalProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const safeCheck = useMemo(() => detectNegativity(text), [text]);
+
+  const [releaseStep, setReleaseStep] = useState(0);
+  useEffect(() => {
+    if (!isReleasing) return;
+    setReleaseStep(0);
+    const id = setInterval(() => setReleaseStep(s => Math.min(s + 1, RELEASE_STEPS.length - 1)), 2200);
+    return () => clearInterval(id);
+  }, [isReleasing]);
 
   const handleSubmit = async () => {
     if (text.trim().length === 0 || isReleasing) return;
@@ -224,6 +236,7 @@ export function ComposeModal({ onClose, onSubmit }: ComposeModalProps) {
               placeholder="Whisper into the void..."
               maxLength={MAX_CHARS + 20}
               autoFocus
+              readOnly={isReleasing}
               className="relative z-10 w-full bg-transparent px-4 sm:px-7 pt-3 sm:pt-4 pb-3 resize-none outline-none text-[#e8e2dd] placeholder-[rgba(138,127,121,0.6)] flex-1 break-words [overflow-wrap:anywhere]"
               style={{
                 fontFamily: "'Alegreya Sans', sans-serif",
@@ -246,6 +259,40 @@ export function ComposeModal({ onClose, onSubmit }: ComposeModalProps) {
                 </span>
               </div>
             </div>
+
+            {/* Releasing: dim the paper and show what's happening */}
+            <AnimatePresence>
+              {isReleasing && (
+                <motion.div
+                  className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-[rgba(10,7,12,0.55)]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <motion.div
+                    className="w-3 h-3 rounded-full bg-[#D66A3E]"
+                    animate={{ scale: [1, 1.5, 1], boxShadow: ['0 0 12px 4px rgba(214,106,62,0.5)', '0 0 28px 10px rgba(214,106,62,0.8)', '0 0 12px 4px rgba(214,106,62,0.5)'] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={releaseStep}
+                      className="text-[#f9f3eb] text-[15px] sm:text-[18px] italic"
+                      style={{ fontFamily: "'Alegreya', serif" }}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {RELEASE_STEPS[releaseStep]}
+                    </motion.p>
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Real-time SafeSpace inline warning */}
             <AnimatePresence>
@@ -302,7 +349,7 @@ export function ComposeModal({ onClose, onSubmit }: ComposeModalProps) {
                 disabled={!canSubmit}
                 className={[
                   'px-5 sm:px-8 rounded-[14px] sm:rounded-[18px] transition-colors duration-200 cursor-pointer flex items-center gap-2 flex-shrink-0',
-                  canSubmit
+                  canSubmit || isReleasing
                     ? 'bg-[#D66A3E] text-[#fffcf9] shadow-[0_0_15px_rgba(214,106,62,0.4)]'
                     : !safeCheck.allowed && text.trim() && !safeCheck.isCrisis
                       ? 'bg-[rgba(193,60,60,0.25)] text-[rgba(255,255,255,0.4)] cursor-not-allowed border border-[rgba(193,60,60,0.3)]'
@@ -318,7 +365,9 @@ export function ComposeModal({ onClose, onSubmit }: ComposeModalProps) {
                 whileTap={canSubmit ? { scale: 0.97 } : {}}
                 transition={{ duration: 0.18 }}
               >
-                {isReleasing ? 'Releasing...' : !safeCheck.allowed && text.trim() && !safeCheck.isCrisis ? (
+                {isReleasing ? (
+                  <><Loader2 size={16} className="animate-spin" /> Releasing…</>
+                ) : !safeCheck.allowed && text.trim() && !safeCheck.isCrisis ? (
                   <span className="flex items-center gap-1 justify-center"><Shield size={14} /> Blocked</span>
                 ) : 'Release into the sky'}
               </motion.button>
