@@ -339,6 +339,10 @@ const ThoughtCard = React.memo(function ThoughtCard({
         left: thought.x,
         top: thought.y,
         width: 250,
+        // Tilt (and the drag scale) pivot on the tip of the lantern's stick, like a lantern
+        // hanging from its string. Around the card's centre the tip swung up to ~13 px sideways,
+        // away from the constellation thread tied to it.
+        transformOrigin: '125px 0px',
         // transform is owned by the drag code / layout effect above, not set here,
         // so React re-renders never overwrite an in-progress drag position.
         touchAction: 'none',

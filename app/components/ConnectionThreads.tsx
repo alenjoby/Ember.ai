@@ -25,7 +25,9 @@ const EMOTION_COLORS: Record<string, string> = {
   grateful: '#D9F2B4',
 };
 
-/** Upward / organic arch between two lantern flames. */
+const STICK_KNOT_Y = 7;
+
+/** Upward / organic arch between two lantern sticks. */
 function threadPath(ax: number, ay: number, bx: number, by: number): string {
   const dist = Math.hypot(bx - ax, by - ay);
   const arcHeight = Math.min(80, Math.max(25, dist * 0.12));
@@ -87,12 +89,13 @@ export const ConnectionThreads = React.memo(React.forwardRef<ConnectionThreadsHa
         const key = [a.id, b.id].sort().join('__');
         if (map.has(key)) continue;
 
-        // Threads hang from the tip of each lantern's stick: card width = 250, so the stick is at
-        // x: 125, and its tip is the top of the lantern (y: 0; a pixel lower so it meets the stick).
+        // Threads are tied to each lantern's stick: card width = 250, so the stick is at x: 125.
+        // The stick runs from y: 0 to ~24 and lanterns bob up to 8 px, so the knot sits at y: 7,
+        // which stays on the stick through the whole bob (the tip itself would drift off it).
         const ax = (a.x || 0) + 125;
-        const ay = (a.y || 0) + 1;
+        const ay = (a.y || 0) + STICK_KNOT_Y;
         const bx = (b.x || 0) + 125;
-        const by = (b.y || 0) + 1;
+        const by = (b.y || 0) + STICK_KNOT_Y;
 
         const path = threadPath(ax, ay, bx, by);
         const color = a.lantern?.palette?.[0] || EMOTION_COLORS[a.emotion] || '#d66a3e';
@@ -129,13 +132,18 @@ export const ConnectionThreads = React.memo(React.forwardRef<ConnectionThreadsHa
       if (!svg) return;
       for (const th of threadsRef.current) {
         if (th.fromId !== id && th.toId !== id) continue;
-        const d = threadPath(
-          th.ax + (th.fromId === id ? dx : 0),
-          th.ay + (th.fromId === id ? dy : 0),
-          th.bx + (th.toId === id ? dx : 0),
-          th.by + (th.toId === id ? dy : 0),
-        );
+        const ax = th.ax + (th.fromId === id ? dx : 0);
+        const ay = th.ay + (th.fromId === id ? dy : 0);
+        const bx = th.bx + (th.toId === id ? dx : 0);
+        const by = th.by + (th.toId === id ? dy : 0);
+        const d = threadPath(ax, ay, bx, by);
         svg.querySelectorAll(`[data-thread="${th.key}"]`).forEach(el => el.setAttribute('d', d));
+        // The knots ride along with the dragged lantern's stick.
+        svg.querySelectorAll(`[data-knot="${th.key}"]`).forEach(el => {
+          const end = el.getAttribute('data-end') === 'a';
+          el.setAttribute('cx', String(end ? ax : bx));
+          el.setAttribute('cy', String(end ? ay : by));
+        });
       }
     },
   }), []);
@@ -168,10 +176,34 @@ export const ConnectionThreads = React.memo(React.forwardRef<ConnectionThreadsHa
         const strokeOpacity = isDimmed
           ? 0.04
           : isHighlighted
-          ? 0.65
-          : 0.22;
+          ? 0.7
+          : 0.26;
 
-        const strokeWidth = isHighlighted ? 1.8 : 1.2;
+        const strokeWidth = isHighlighted ? 1.8 : 1.1;
+        // Knot where the thread is tied to each stick: a small bead with a soft halo.
+        const knotOpacity = isDimmed ? 0.08 : isHighlighted ? 1 : 0.6;
+        const knots = (['a', 'b'] as const).map(end => (
+          <React.Fragment key={end}>
+            <circle
+              data-knot={th.key}
+              data-end={end}
+              cx={end === 'a' ? th.ax : th.bx}
+              cy={end === 'a' ? th.ay : th.by}
+              r={isHighlighted ? 6 : 4.5}
+              fill={th.color}
+              opacity={knotOpacity * 0.22}
+            />
+            <circle
+              data-knot={th.key}
+              data-end={end}
+              cx={end === 'a' ? th.ax : th.bx}
+              cy={end === 'a' ? th.ay : th.by}
+              r={isHighlighted ? 2.4 : 1.9}
+              fill={isHighlighted ? '#fff3e0' : th.color}
+              opacity={knotOpacity}
+            />
+          </React.Fragment>
+        ));
 
         return (
           <g key={th.key} className="transition-opacity duration-500">
@@ -188,7 +220,8 @@ export const ConnectionThreads = React.memo(React.forwardRef<ConnectionThreadsHa
               />
             )}
 
-            {/* Main thread line */}
+            {/* Main thread line: solid, so it always reaches the knots (a dash pattern could end
+                on a gap and leave the thread short of the stick) */}
             <path
               data-thread={th.key}
               d={th.path}
@@ -196,9 +229,10 @@ export const ConnectionThreads = React.memo(React.forwardRef<ConnectionThreadsHa
               stroke={th.color}
               strokeWidth={strokeWidth}
               strokeOpacity={strokeOpacity}
-              strokeDasharray={isHighlighted ? 'none' : '4 3'}
               strokeLinecap="round"
             />
+
+            {knots}
 
             {/* Traveling warm spark along thread (one circle; the white core doubled the work) */}
             {canAnimateSpark && (
