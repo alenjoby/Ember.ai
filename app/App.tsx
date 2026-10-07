@@ -26,7 +26,7 @@ import { SafeSpaceGuard } from './components/SafeSpaceGuard';
 /** Thrown after the popup is shown, so the compose/reply UI keeps the user's text or recording. */
 class ShownToUserError extends Error {}
 import type { Helpline } from './types';
-import { isPerfThought, makePerfThoughts, perfCountFromUrl, PerfOverlay } from './perfMode';
+import { isPerfThought, makePerfThoughts, perfCountFromUrl, PerfOverlay, videoMode } from './perfMode';
 
 const getAnonUserId = () => {
   let uid = localStorage.getItem('anon_user_id');
@@ -673,8 +673,13 @@ export default function App() {
     if (tutorialThought) {
       return [tutorialThought];
     }
+    // ?video=1 (recording the film): never show real people's posts, only the test lanterns
+    // plus thoughts released in this browser during the recording.
+    if (videoMode()) {
+      return [...timeFiltered.filter(t => t.authorId === anonUserId || getOwnerToken(t.id)), ...perfThoughts];
+    }
     return perfThoughts.length ? [...timeFiltered, ...perfThoughts] : timeFiltered;
-  }, [thoughts, tutorialThought, perfThoughts]);
+  }, [thoughts, tutorialThought, perfThoughts, anonUserId]);
 
   if (loading) {
     return (
@@ -748,7 +753,7 @@ export default function App() {
 
   return (
     <div className="w-full h-[100dvh] relative overflow-hidden bg-[#f9f3eb]">
-      {import.meta.env.DEV && demoEnabled !== null && (
+      {import.meta.env.DEV && !videoMode() && demoEnabled !== null && (
         <button
           onClick={toggleDemo}
           className="fixed bottom-4 left-4 z-[100] rounded-full px-3 py-1.5 text-xs font-medium shadow-md border transition-colors"
@@ -762,7 +767,7 @@ export default function App() {
           Demo {demoEnabled ? 'on' : 'off'}
         </button>
       )}
-      {import.meta.env.DEV && (
+      {import.meta.env.DEV && !videoMode() && (
         <button
           onClick={() => setPerfCount(c => (c ? 0 : 100))}
           className="fixed bottom-4 left-28 z-[100] rounded-full px-3 py-1.5 text-xs font-medium shadow-md border transition-colors"
@@ -776,7 +781,7 @@ export default function App() {
           Perf {perfCount ? `${perfCount} on` : 'off'}
         </button>
       )}
-      {perfCount > 0 && <PerfOverlay count={perfCount} />}
+      {perfCount > 0 && !videoMode() && <PerfOverlay count={perfCount} />}
       <MainSpace
         thoughts={activeThoughts}
         selectedThoughtId={activeView === 'thoughtDetail' && selectedThought ? selectedThought.id : null}
