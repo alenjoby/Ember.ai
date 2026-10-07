@@ -595,7 +595,7 @@ select $seed$[
 insert into public.thoughts
   (id, text, emotion, author_id, x, y, rotation, width, variant, ai_status, lantern, show_help, is_example, created_at)
 select
-  md5('ember-seed:' || e->>'id')::uuid,
+  md5('ember-seed:' || (e->>'id'))::uuid,
   e->>'text',
   e->>'emotion',
   e->>'authorId',
@@ -614,8 +614,8 @@ on conflict (id) do nothing;
 
 insert into public.replies (id, thought_id, type, content, is_ai, author_id, created_at, seeded)
 select
-  md5('ember-seed:' || r->>'id')::uuid,
-  md5('ember-seed:' || e->>'id')::uuid,
+  md5('ember-seed:' || (r->>'id'))::uuid,
+  md5('ember-seed:' || (e->>'id'))::uuid,
   r->>'type',
   coalesce(r->>'content', ''),
   coalesce((r->>'isAI')::boolean, false),
