@@ -34,6 +34,7 @@ interface MainSpaceProps {
   tutorialStep?: 'none' | 'hud' | 'star' | 'reply' | 'complete';
   setTutorialStep?: (step: 'none' | 'hud' | 'star' | 'reply' | 'complete') => void;
   onTriggerPanToStar?: () => void;
+  hasUnreadHistory?: boolean;
 }
 
 
@@ -530,7 +531,7 @@ const EMOTION_CHIPS = [
   { key: 'grateful', label: 'Grateful', color: '#D9F2B4' },
 ] as const;
 
-export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThoughtClick, onReplyClick, onHistoryClick, onThoughtMove, aiGlowThoughtId, voiceCount, panToTarget, onPanComplete, tutorialStep = 'none', setTutorialStep, onTriggerPanToStar }: MainSpaceProps) {
+export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThoughtClick, onReplyClick, onHistoryClick, onThoughtMove, aiGlowThoughtId, voiceCount, panToTarget, onPanComplete, tutorialStep = 'none', setTutorialStep, onTriggerPanToStar, hasUnreadHistory = false }: MainSpaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [isDraggingCard, setIsDraggingCard] = useState(false);
@@ -982,7 +983,7 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
       >
         <motion.button
           onClick={onHistoryClick}
-          className="bg-[rgba(20,15,25,0.7)] backdrop-blur-md border border-[rgba(255,255,255,0.1)] text-[#f9f3eb] rounded-full px-3 h-[36px] sm:px-5 sm:h-[40px] flex items-center justify-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D66A3E]"
+          className="relative bg-[rgba(20,15,25,0.7)] backdrop-blur-md border border-[rgba(255,255,255,0.1)] text-[#f9f3eb] rounded-full px-3 h-[36px] sm:px-5 sm:h-[40px] flex items-center justify-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D66A3E]"
           whileHover={{
             scale: 1.05,
             boxShadow: '0 0 20px rgba(214,106,62,0.4)',
@@ -993,6 +994,9 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
           aria-label="View History"
         >
           <span className="text-[11px] sm:text-[13px] font-bold tracking-wide" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>HISTORY</span>
+          {hasUnreadHistory && (
+            <span className="w-2 h-2 rounded-full bg-[#D66A3E] shadow-[0_0_8px_#D66A3E] animate-pulse" />
+          )}
         </motion.button>
       </div>
 

@@ -2,12 +2,9 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Feather, Mic, Brush, Sparkles, Loader2, Heart,
-  Moon, Star, Leaf, Smile, Flame, Waves, Droplet, 
-  Cloud, Flower2, Sun, Music, Flower, HeartHandshake,
-  Trash2, Shield
+  Leaf, Trash2, Shield
 } from 'lucide-react';
 import type { Thought, ThoughtResponse } from '../App';
-import { projectId, publicAnonKey } from '../../supabase/info';
 import { ScreenGlow } from './ScreenGlow';
 import { StickerIcon as BaseStickerIcon } from './StickerIcon';
 import { detectNegativity, getVoiceReminder } from '../safeSpace';
@@ -15,7 +12,6 @@ import { SafeSpaceGuard, SafeSpaceInline } from './SafeSpaceGuard';
 import { AiLabel } from './AiLabel';
 import { CrisisCard } from './CrisisCard';
 import { useLanternSound } from './useLanternSound';
-
 
 interface Props {
   thought: Thought;
@@ -107,7 +103,6 @@ function NoteTab({ onSend }: { onSend: (text: string) => Promise<void> | void })
 
   const handleSend = async () => {
     if (!text.trim() || isSending) return;
-    // Check for negativity before sending
     const result = detectNegativity(text);
     if (!result.allowed) {
       setGuardMessage(result.reason);
@@ -125,50 +120,69 @@ function NoteTab({ onSend }: { onSend: (text: string) => Promise<void> | void })
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
-    <div className="relative flex flex-col gap-4">
-      <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
-        placeholder="Write something true..."
-        maxLength={240}
-        className="w-full bg-[rgba(0,0,0,0.2)] border border-[rgba(255,255,255,0.08)] focus:border-[rgba(214,106,62,0.45)] focus:shadow-[0_0_15px_rgba(214,106,62,0.15)] rounded-[20px] px-5 py-4 resize-none outline-none text-[#f9f3eb] placeholder-[#8a7f79] text-[16px] leading-[1.5] transition-all duration-200"
-        style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 400, minHeight: 110 }}
-      />
-      {/* Real-time inline SafeSpace warning */}
-      <AnimatePresence>
-        {!safeCheck.allowed && text.trim() && (
-          <SafeSpaceInline severity={safeCheck.severity} message={safeCheck.reason} />
-        )}
-      </AnimatePresence>
-      <div className="flex items-center justify-between">
-        <span
-          className="text-[#8a7f79] text-[12px]"
-          style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 500 }}
-        >
-          {text.length} / 240
-        </span>
-        <motion.button
-          onClick={handleSend}
-          disabled={!text.trim()}
-          className={[
-            'px-6 h-[44px] rounded-[16px] text-[15px] transition-colors duration-200',
-            text.trim()
-              ? !safeCheck.allowed
-                ? 'bg-[rgba(193,60,60,0.3)] text-[rgba(255,252,249,0.5)] cursor-not-allowed border border-[rgba(193,60,60,0.3)]'
-                : 'bg-[#D66A3E] text-[#fffcf9] cursor-pointer'
-              : 'bg-[rgba(214,106,62,0.2)] text-[rgba(255,252,249,0.5)] cursor-not-allowed',
-          ].join(' ')}
-          style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 700 }}
-          whileHover={text.trim() && safeCheck.allowed ? { boxShadow: '0 0 18px rgba(214,106,62,0.4)', scale: 1.02 } : {}}
-          whileTap={text.trim() && safeCheck.allowed ? { scale: 0.97 } : {}}
-          transition={{ duration: 0.15 }}
-        >
-          {!safeCheck.allowed && text.trim() ? (
-            <span className="flex items-center gap-1 justify-center"><Shield size={14} /> Blocked</span>
-          ) : 'Send note'}
-        </motion.button>
+    <div className="relative flex flex-col gap-2.5">
+      <div className="relative bg-white/[0.03] border border-white/[0.08] focus-within:border-[#D66A3E]/60 focus-within:ring-2 focus-within:ring-[#D66A3E]/15 rounded-[22px] p-3.5 transition-all duration-200">
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Whisper something gentle... (Enter to send)"
+          maxLength={240}
+          className="w-full bg-transparent resize-none outline-none text-[#fcf8f2] placeholder-[#8a7f79]/70 text-[15px] leading-[1.55] transition-all"
+          style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 400, minHeight: 74 }}
+        />
+        
+        {/* Real-time inline SafeSpace warning */}
+        <AnimatePresence>
+          {!safeCheck.allowed && text.trim() && (
+            <div className="mb-2">
+              <SafeSpaceInline severity={safeCheck.severity} message={safeCheck.reason} />
+            </div>
+          )}
+        </AnimatePresence>
+
+        <div className="flex items-center justify-between pt-2 border-t border-white/[0.04]">
+          <span
+            className="text-[#8a7f79]/80 text-[11px] font-medium"
+            style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
+          >
+            {text.length} / 240
+          </span>
+          <motion.button
+            onClick={handleSend}
+            disabled={!text.trim() || !safeCheck.allowed || isSending}
+            className={[
+              'px-5 h-[36px] rounded-[14px] text-[13px] font-bold transition-all duration-200 flex items-center gap-1.5 justify-center',
+              text.trim() && safeCheck.allowed
+                ? 'bg-gradient-to-r from-[#D66A3E] to-[#F28A4B] text-[#fffcf9] shadow-[0_0_15px_rgba(214,106,62,0.4)] cursor-pointer hover:brightness-110 active:scale-95'
+                : 'bg-white/[0.05] text-[#8a7f79]/50 cursor-not-allowed border border-white/[0.05]'
+            ].join(' ')}
+            style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
+            whileHover={text.trim() && safeCheck.allowed ? { scale: 1.03 } : {}}
+            whileTap={text.trim() && safeCheck.allowed ? { scale: 0.96 } : {}}
+          >
+            {isSending ? (
+              <Loader2 size={13} className="animate-spin text-white" />
+            ) : !safeCheck.allowed && text.trim() ? (
+              <>
+                <Shield size={13} />
+                <span>Blocked</span>
+              </>
+            ) : (
+              <span>Send whisper</span>
+            )}
+          </motion.button>
+        </div>
       </div>
+
       {/* Fullscreen SafeSpace Guard overlay */}
       <SafeSpaceGuard
         visible={showGuard}
@@ -207,7 +221,6 @@ function VoiceTab({ onSend }: { onSend: (text: string, url: string, durationSec:
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [recordState]);
 
-  // Stop automatically at the limit instead of letting the server refuse a long recording.
   useEffect(() => {
     if (recordState === 'recording' && duration >= MAX_VOICE_SECONDS) stopRecording();
   }, [duration, recordState]);
@@ -226,7 +239,6 @@ function VoiceTab({ onSend }: { onSend: (text: string, url: string, durationSec:
       };
 
       mediaRecorder.onstop = async () => {
-        // Use the browser's real format (Safari records audio/mp4, not webm).
         const mime = (mediaRecorder.mimeType || 'audio/webm').split(';')[0];
         const audioBlob = new Blob(audioChunksRef.current, { type: mime });
         const reader = new FileReader();
@@ -261,13 +273,11 @@ function VoiceTab({ onSend }: { onSend: (text: string, url: string, durationSec:
     setLoading(true);
     try {
       const finalTranscript = `Voice message (${formatTime(duration)})`;
-      // The server needs the length (it used to treat a missing one as "too long").
       await onSend(finalTranscript, recordedAudioUrl, Math.max(1, duration));
       setRecordState('idle');
       setDuration(0);
       setRecordedAudioUrl('');
     } catch (err) {
-      // Blocked or failed: keep the recording so the user can try again (App shows why).
       console.error('Audio send error:', err);
     } finally {
       setLoading(false);
@@ -277,134 +287,126 @@ function VoiceTab({ onSend }: { onSend: (text: string, url: string, durationSec:
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="relative bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.05)] rounded-[24px] p-5">
+    <div className="flex flex-col gap-3">
+      <div className="relative bg-white/[0.03] border border-white/[0.08] rounded-[22px] p-4 flex flex-col items-center text-center">
         <p
-          className="text-[#f9f3eb] text-[15px] mb-0.5"
-          style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 700 }}
-        >
-          Record Voice note
-        </p>
-        <p
-          className="text-[#8a7f79] text-[12.5px] mb-2"
-          style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 400 }}
+          className="text-[#fcf8f2] text-[14px] font-bold mb-0.5"
+          style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
         >
           {recordState === 'idle'
-            ? 'Speak naturally, when typing feels too heavy'
+            ? 'Whisper with your voice'
             : recordState === 'recording'
-            ? 'Recording... speak from the heart'
-            : 'Ready to send your voice note'}
+            ? 'Listening... speak gently'
+            : 'Voice whisper ready'}
         </p>
+        <p
+          className="text-[#8a7f79] text-[11.5px] mb-2.5"
+          style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
+        >
+          {recordState === 'idle'
+            ? 'When words on a screen aren\'t enough'
+            : recordState === 'recording'
+            ? 'Recording up to 60 seconds'
+            : `Recorded (${formatTime(duration)})`}
+        </p>
+
         {/* SafeSpace voice reminder */}
         <div
-          className="rounded-[10px] px-3 py-1.5 mb-3 flex items-center gap-2"
+          className="rounded-[10px] px-3 py-1 mb-2 flex items-center gap-2 max-w-xs"
           style={{ background: 'rgba(214,165,62,0.06)', border: '1px solid rgba(214,165,62,0.12)' }}
         >
-          <Shield size={13} className="text-[#d6a53e] flex-shrink-0" />
+          <Shield size={12} className="text-[#d6a53e] flex-shrink-0" />
           <span
-            className="text-[11.5px] text-[#d6a53e] leading-[1.3]"
+            className="text-[11px] text-[#d6a53e] leading-[1.3]"
             style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 500 }}
           >
             {getVoiceReminder()}
           </span>
         </div>
 
-        <div className="flex flex-col items-center gap-3.5 mb-4">
-          <div className="relative w-[80px] h-[80px] flex items-center justify-center">
+        {/* Pulsing Voice Orb */}
+        <div className="relative w-[64px] h-[64px] flex items-center justify-center my-1.5">
+          {recordState === 'recording' && (
             <motion.div
-              className="absolute rounded-full border"
-              style={{ width: '70px', height: '70px', borderColor: 'rgba(214,106,62,0.4)' }}
-              animate={{
-                scale: recordState === 'recording' ? [1, 1.12, 1] : 1,
-                opacity: recordState === 'recording' ? [0.4, 0.7, 0.4] : 0.15,
-              }}
-              transition={{
-                duration: 1.8,
-                repeat: recordState === 'recording' ? Infinity : 0,
-                ease: 'easeInOut',
-                delay: 0.3,
-              }}
+              className="absolute inset-0 rounded-full bg-[#D66A3E]/20 border border-[#D66A3E]/50"
+              animate={{ scale: [1, 1.35, 1], opacity: [0.5, 0.1, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
             />
-            <motion.div
-              className="absolute rounded-full border"
-              style={{
-                width: '54px',
-                height: '54px',
-                borderColor:
-                  recordState === 'recording' ? 'rgba(214,106,62,0.8)' : 'rgba(255,255,255,0.2)',
-              }}
-              animate={{
-                scale: recordState === 'recording' ? [1, 1.18, 1] : recordState === 'recorded' ? 1.08 : 1,
-                opacity:
-                  recordState === 'recording' ? [0.6, 1, 0.6] : recordState === 'recorded' ? 0.7 : 0.4,
-              }}
-              transition={{
-                duration: 1.8,
-                repeat: recordState === 'recording' ? Infinity : 0,
-                ease: 'easeInOut',
-              }}
-            />
-            <div className="relative z-10">
-              <Mic size={22} color={recordState === 'recording' ? '#D66A3E' : '#8a7f79'} />
-            </div>
-          </div>
-          {recordState !== 'idle' && (
-            <span
-              className="text-[#D66A3E] text-[12px] font-bold"
-              style={{ fontFamily: "'Alegreya Sans', sans-serif", textShadow: '0 0 8px rgba(214,106,62,0.5)' }}
-            >
-              {formatTime(duration)}
-            </span>
           )}
+          <button
+            onClick={recordState === 'idle' ? startRecording : recordState === 'recording' ? stopRecording : undefined}
+            className={[
+              'relative z-10 w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all cursor-pointer shadow-lg',
+              recordState === 'recording'
+                ? 'bg-gradient-to-tr from-[#D66A3E] to-[#F28A4B] text-white shadow-[0_0_20px_rgba(214,106,62,0.6)]'
+                : recordState === 'recorded'
+                ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
+                : 'bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-amber-200/80 hover:text-white'
+            ].join(' ')}
+          >
+            {recordState === 'recording' ? (
+              <div className="w-3.5 h-3.5 rounded-sm bg-white" />
+            ) : recordState === 'recorded' ? (
+              <Mic size={20} className="text-emerald-300" />
+            ) : (
+              <Mic size={20} className="text-[#D66A3E]" />
+            )}
+          </button>
         </div>
 
-        <div className="flex items-center gap-3 justify-center">
+        {recordState !== 'idle' && (
+          <span
+            className="text-[#D66A3E] text-[12px] font-bold tracking-wider mb-2"
+            style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
+          >
+            {formatTime(duration)}
+          </span>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2.5 mt-1.5">
           {recordState === 'idle' && (
             <button
               onClick={startRecording}
-              className="bg-[rgba(255,255,255,0.1)] text-[#fffcf9] rounded-[16px] px-5 h-[40px] flex items-center gap-2 hover:bg-[rgba(255,255,255,0.15)] transition-colors cursor-pointer"
-              style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 700, fontSize: 13 }}
+              className="px-5 h-[34px] rounded-full bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-white text-[12px] font-bold tracking-wide transition-all cursor-pointer"
+              style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
             >
-              <div className="w-[8px] h-[8px] rounded-full bg-[#D66A3E] shadow-[0_0_8px_#D66A3E]" />
-              Record
+              Start Recording
             </button>
           )}
           {recordState === 'recording' && (
             <button
               onClick={stopRecording}
-              className="bg-[#D66A3E] text-[#fffcf9] rounded-[16px] px-5 h-[40px] flex items-center gap-2 cursor-pointer shadow-[0_0_15px_rgba(214,106,62,0.5)]"
-              style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 700, fontSize: 13 }}
+              className="px-5 h-[34px] rounded-full bg-[#D66A3E] text-white text-[12px] font-bold tracking-wide transition-all cursor-pointer shadow-[0_0_12px_rgba(214,106,62,0.5)]"
+              style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
             >
-              <div className="w-[8px] h-[8px] rounded-sm bg-white" />
-              Stop
+              Finish Note
             </button>
           )}
           {recordState === 'recorded' && (
             <>
               <button
                 onClick={() => { setRecordState('idle'); setDuration(0); setRecordedAudioUrl(''); }}
-                className="bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-[#e8e2dd] rounded-[16px] px-4 h-[40px] hover:bg-[rgba(255,255,255,0.1)] transition-colors cursor-pointer"
-                style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 500, fontSize: 13 }}
+                className="px-4 h-[34px] rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-white/70 text-[12px] transition-all cursor-pointer"
+                style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
               >
                 Re-record
               </button>
               <motion.button
                 onClick={handleSendRecorded}
                 disabled={loading}
-                className={['bg-[#D66A3E] text-[#fffcf9] rounded-[16px] px-5 h-[40px] cursor-pointer flex items-center justify-center gap-2', loading ? 'opacity-50 cursor-not-allowed' : ''].join(' ')}
-                style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 700, fontSize: 13 }}
-                whileHover={!loading ? { boxShadow: '0 0 20px rgba(214,106,62,0.4)', scale: 1.02 } : {}}
-                whileTap={!loading ? { scale: 0.97 } : {}}
-                transition={{ duration: 0.15 }}
+                className="px-5 h-[34px] rounded-full bg-gradient-to-r from-[#D66A3E] to-[#F28A4B] text-white text-[12px] font-bold shadow-[0_0_15px_rgba(214,106,62,0.4)] cursor-pointer flex items-center gap-1.5"
+                style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.96 }}
               >
-                {loading ? <Loader2 className="animate-spin" size={14} /> : 'Send voice'}
+                {loading ? <Loader2 size={13} className="animate-spin" /> : 'Send voice'}
               </motion.button>
             </>
           )}
         </div>
       </div>
 
-      {/* Fullscreen SafeSpace Guard overlay */}
       <SafeSpaceGuard
         visible={showGuard}
         severity={guardSeverity}
@@ -419,27 +421,22 @@ function StickerTab({ onSend }: { onSend: (iconName: string) => void }) {
   return (
     <div className="max-w-full overflow-x-hidden">
       <p
-        className="text-[#8a7f79] text-[13px] mb-4"
+        className="text-[#8a7f79] text-[12px] mb-3 text-center"
         style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 400 }}
       >
         Tap to send warmth anonymously
       </p>
-      <div className="grid grid-cols-5 sm:grid-cols-5 gap-1.5 sm:gap-2">
+      <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
         {STICKERS.map(s => (
           <motion.button
             key={s.icon}
             onClick={() => onSend(s.icon)}
-            className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.05)] rounded-[14px] h-[56px] sm:h-[68px] flex flex-col items-center justify-center gap-0.5 sm:gap-1 cursor-pointer"
-            whileHover={{
-              scale: 1.06,
-              backgroundColor: 'rgba(214,106,62,0.1)',
-              borderColor: 'rgba(214,106,62,0.4)',
-              boxShadow: '0 0 15px rgba(214,106,62,0.2)'
-            }}
+            className="bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] hover:border-amber-500/40 rounded-[14px] h-[54px] sm:h-[62px] flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors"
+            whileHover={{ scale: 1.06, boxShadow: '0 0 15px rgba(214,106,62,0.2)' }}
             whileTap={{ scale: 0.94 }}
             transition={{ duration: 0.14 }}
           >
-            <StickerIcon nameOrEmoji={s.icon} size={24} />
+            <StickerIcon nameOrEmoji={s.icon} size={22} />
             <span
               className="text-[#8a7f79] text-[10px]"
               style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 500 }}
@@ -453,17 +450,9 @@ function StickerTab({ onSend }: { onSend: (iconName: string) => void }) {
   );
 }
 
-function VoicePlayer({ response, isAI, timeStr, onDeleteReply }: { response: ThoughtResponse; isAI?: boolean; timeStr: string; onDeleteReply?: (replyId: string) => void }) {
+function VoicePlayer({ response, isAI, timeStr, onDeleteReply }: { response: ThoughtResponse; isAI?: boolean; timeStr: string; onDeleteReply?: (id: string) => void }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-    };
-  }, []);
 
   const togglePlay = () => {
     if (!response.audioUrl) return;
@@ -488,58 +477,58 @@ function VoicePlayer({ response, isAI, timeStr, onDeleteReply }: { response: Tho
       {isAI && <ScreenGlow isPlaying={isPlaying} />}
       <div 
         className={[
-          'rounded-[20px] px-5 py-4.5 flex flex-col gap-3 transition-all duration-300',
+          'rounded-[18px] px-4.5 py-4 flex flex-col gap-3 transition-all duration-300',
           isAI 
-            ? 'bg-[rgba(214,106,62,0.08)] border border-[rgba(214,106,62,0.25)] shadow-[0_4px_20px_rgba(214,106,62,0.05),inset_0_1px_0_rgba(255,255,255,0.05)]' 
-            : 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]'
+            ? 'bg-gradient-to-br from-amber-500/[0.08] to-orange-500/[0.03] border border-amber-500/25 shadow-[0_4px_25px_rgba(214,106,62,0.08),inset_0_1px_0_rgba(255,255,255,0.06)]' 
+            : 'bg-white/[0.025] hover:bg-white/[0.04] border border-white/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]'
         ].join(' ')}
       >
         {/* Transcript text on top */}
         <p 
-          className="text-[#f9f3eb] text-[14.5px] leading-[1.6] whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+          className="text-[#fcf8f2] text-[14.5px] leading-[1.6] whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
           style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 400 }}
         >
           {response.content}
         </p>
 
         {/* Player controls row */}
-        <div className="flex items-center gap-3 bg-[rgba(0,0,0,0.18)] rounded-[14px] px-3.5 py-2.5 border border-[rgba(255,255,255,0.02)]">
+        <div className="flex items-center gap-3 bg-black/25 rounded-[14px] px-3.5 py-2.5 border border-white/[0.03]">
           <button 
             onClick={togglePlay}
-            className="w-[34px] h-[34px] rounded-full bg-[rgba(214,106,62,0.18)] flex items-center justify-center hover:bg-[rgba(214,106,62,0.3)] transition-all duration-200 cursor-pointer border border-[rgba(214,106,62,0.35)] shadow-[0_2px_8px_rgba(214,106,62,0.15)] flex-shrink-0"
+            className="w-[34px] h-[34px] rounded-full bg-gradient-to-tr from-[#D66A3E] to-[#F28A4B] text-white flex items-center justify-center hover:brightness-110 transition-all duration-200 cursor-pointer shadow-[0_0_12px_rgba(214,106,62,0.4)] flex-shrink-0"
+            aria-label={isPlaying ? "Pause voice message" : "Play voice message"}
           >
             {isPlaying ? (
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <rect x="2" y="1" width="2" height="8" rx="0.5" fill="#D66A3E" />
-                <rect x="6" y="1" width="2" height="8" rx="0.5" fill="#D66A3E" />
+                <rect x="2" y="1" width="2" height="8" rx="0.5" fill="white" />
+                <rect x="6" y="1" width="2" height="8" rx="0.5" fill="white" />
               </svg>
             ) : (
-              <svg width="10" height="13" viewBox="0 0 12 14" fill="none" className="ml-0.5">
-                <path d="M2 1L10 7L2 13V1Z" fill="#D66A3E" />
+              <svg width="10" height="12" viewBox="0 0 12 14" fill="none" className="ml-0.5">
+                <path d="M2 1L10 7L2 13V1Z" fill="white" />
               </svg>
             )}
           </button>
 
-          {/* Waveform container with more bars and glowing colors */}
-          <div className="flex items-end gap-[3px] h-[24px] flex-1 min-w-0 px-1 select-none">
+          {/* Waveform container with glowing bars */}
+          <div className="flex items-end gap-[3px] h-[22px] flex-1 min-w-0 px-1 select-none">
             {Array.from({ length: 30 }, (_, i) => {
-              // Create a nicer pseudo-random wave shape that looks like audio
               const h = 4 + (Math.sin(i * 0.4) * 8) + ((i * 3) % 6);
               return (
                 <motion.div
                   key={i}
                   className={[
-                    'w-[3px] rounded-[999px]',
-                    isAI ? 'bg-[#D66A3E]' : 'bg-[rgba(255,255,255,0.35)]'
+                    'w-[3px] rounded-full',
+                    isAI ? 'bg-[#D66A3E]' : 'bg-white/40'
                   ].join(' ')}
                   style={{ minHeight: '4px' }}
                   animate={isPlaying ? {
                     height: [h, Math.max(3, h * 0.25), h * 1.35, h],
-                    opacity: [0.8, 0.4, 1, 0.8],
+                    opacity: [0.85, 0.4, 1, 0.85],
                     boxShadow: isAI 
                       ? ['0 0 0px transparent', '0 0 8px rgba(214,106,62,0.6)', '0 0 0px transparent']
                       : ['0 0 0px transparent', '0 0 4px rgba(255,255,255,0.4)', '0 0 0px transparent']
-                  } : { height: h, opacity: 0.6 }}
+                  } : { height: h, opacity: 0.65 }}
                   transition={isPlaying ? {
                     duration: 0.9,
                     repeat: Infinity,
@@ -552,8 +541,8 @@ function VoicePlayer({ response, isAI, timeStr, onDeleteReply }: { response: Tho
           </div>
         </div>
 
-        {/* Footer info row */}
-        <div className="flex items-center justify-between text-[11.5px] text-[#8a7f79] relative">
+        {/* Footer row */}
+        <div className="flex items-center justify-between text-[11px] text-[#8a7f79] relative">
           <span className="flex items-center gap-1 font-bold" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
             {isAI ? (
               <AiLabel />
@@ -561,11 +550,11 @@ function VoicePlayer({ response, isAI, timeStr, onDeleteReply }: { response: Tho
               'someone'
             )}
           </span>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {localStorage.getItem('ember_admin') === 'true' && onDeleteReply && (
               <button
                 onClick={() => onDeleteReply(response.id)}
-                className="text-red-400 hover:text-red-300 transition-colors focus:outline-none cursor-pointer"
+                className="text-red-400 hover:text-red-300 transition-colors focus:outline-none cursor-pointer p-0.5"
                 title="Delete voice message"
               >
                 <Trash2 size={12} />
@@ -574,14 +563,6 @@ function VoicePlayer({ response, isAI, timeStr, onDeleteReply }: { response: Tho
             <span style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
               {timeStr}
             </span>
-            {!isAI && (
-              <button
-                onClick={() => {}}
-                className="flex items-center gap-1 text-[#D66A3E] hover:text-[#bd5e37] transition-colors focus:outline-none pointer-events-none opacity-0"
-              >
-                <Heart size={12} />
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -601,9 +582,9 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
 
   const wrapper = (children: React.ReactNode) => (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.05, ease: [0.34, 1.56, 0.64, 1] }}
+      transition={{ duration: 0.28, delay: index * 0.04, ease: [0.16, 1, 0.3, 1] }}
     >
       {children}
     </motion.div>
@@ -611,46 +592,48 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
 
   if (response.type === 'sticker') {
     return wrapper(
-      <div className="flex items-center gap-3">
-        <div className="bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.05)] rounded-[14px] w-[54px] h-[54px] flex items-center justify-center shadow-lg">
-          <StickerIcon nameOrEmoji={response.content} size={30} className="drop-shadow-md" />
+      <div className="flex items-center gap-3.5 bg-white/[0.02] border border-white/[0.05] rounded-[18px] p-3 px-4">
+        <div className="bg-white/[0.05] border border-white/[0.08] rounded-[14px] w-[46px] h-[46px] flex items-center justify-center shadow-md flex-shrink-0">
+          <StickerIcon nameOrEmoji={response.content} size={26} className="drop-shadow-md" />
         </div>
-        <div className="flex items-center justify-between w-full relative">
+        <div className="flex items-center justify-between w-full relative min-w-0">
           <span
-            className="text-[#8a7f79] text-[12px] flex items-center gap-1.5"
+            className="text-[#8a7f79] text-[12px] flex items-center gap-1.5 truncate"
             style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
           >
             {isAI ? <AiLabel /> : 'someone'} sent a sticker · {timeStr}
           </span>
-          {localStorage.getItem('ember_admin') === 'true' && onDeleteReply && (
-            <button
-              onClick={() => onDeleteReply(response.id)}
-              className="text-red-400 hover:text-red-300 transition-colors focus:outline-none cursor-pointer mr-2"
-              title="Delete reply"
-            >
-              <Trash2 size={12} />
-            </button>
-          )}
-          {!isAI && (
-            <button
-              onClick={handleThank}
-              className="flex items-center gap-1 text-[#D66A3E] hover:text-[#bd5e37] transition-colors focus:outline-none cursor-pointer"
-              title="Send Thanks"
-            >
-              <Heart size={14} fill={showThanks ? "#D66A3E" : "none"} />
-            </button>
-          )}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {localStorage.getItem('ember_admin') === 'true' && onDeleteReply && (
+              <button
+                onClick={() => onDeleteReply(response.id)}
+                className="text-red-400 hover:text-red-300 transition-colors focus:outline-none cursor-pointer"
+                title="Delete reply"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+            {!isAI && (
+              <button
+                onClick={handleThank}
+                className="flex items-center gap-1 text-[#D66A3E] hover:text-[#bd5e37] transition-colors focus:outline-none cursor-pointer"
+                title="Send Thanks"
+              >
+                <Heart size={13} fill={showThanks ? "#D66A3E" : "none"} />
+              </button>
+            )}
+          </div>
           {/* Floating Heart Animation */}
           <AnimatePresence>
             {showThanks && (
               <motion.div
                 initial={{ opacity: 0, y: 0, scale: 0.5 }}
-                animate={{ opacity: [0, 1, 0], y: -30, scale: 1.5 }}
+                animate={{ opacity: [0, 1, 0], y: -26, scale: 1.4 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 1 }}
                 className="absolute right-0 bottom-4 pointer-events-none text-[#D66A3E]"
               >
-                <Heart size={16} fill="#D66A3E" />
+                <Heart size={15} fill="#D66A3E" />
               </motion.div>
             )}
           </AnimatePresence>
@@ -659,30 +642,32 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
     );
   }
 
-  if (response.type === 'drawing' && response.drawingData) {
+  if (response.type === 'drawing') {
     return wrapper(
-      <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] rounded-[18px] overflow-hidden">
-        <img
-          src={response.drawingData}
-          alt="A drawing reply"
-          className="w-full max-h-[200px] object-contain invert-[0.85] hue-rotate-180" // Quick invert hack to make drawings look better on dark
-        />
-        <div className="px-4 py-2 border-t border-[rgba(255,255,255,0.05)] flex items-center justify-between">
-          <span
-            className="text-[#8a7f79] text-[12px]"
-            style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
-          >
-            {isAI ? '✦ Ember' : 'someone'} drew this · {timeStr}
+      <div className="bg-white/[0.025] border border-white/[0.06] rounded-[18px] p-4 flex flex-col gap-3">
+        <div className="w-full bg-black/40 rounded-[14px] overflow-hidden border border-white/[0.04] flex items-center justify-center p-2">
+          <img
+            src={response.drawingData}
+            alt="Drawing reply"
+            className="max-h-[180px] w-auto object-contain drop-shadow-md"
+          />
+        </div>
+        <div className="flex items-center justify-between text-[11px] text-[#8a7f79]">
+          <span className="font-bold" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
+            {isAI ? <AiLabel /> : 'someone drew this'}
           </span>
-          {localStorage.getItem('ember_admin') === 'true' && onDeleteReply && (
-            <button
-              onClick={() => onDeleteReply(response.id)}
-              className="text-red-400 hover:text-red-300 transition-colors focus:outline-none cursor-pointer"
-              title="Delete reply"
-            >
-              <Trash2 size={12} />
-            </button>
-          )}
+          <div className="flex items-center gap-2.5">
+            <span style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>{timeStr}</span>
+            {localStorage.getItem('ember_admin') === 'true' && onDeleteReply && (
+              <button
+                onClick={() => onDeleteReply(response.id)}
+                className="text-red-400 hover:text-red-300 transition-colors focus:outline-none cursor-pointer"
+                title="Delete reply"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -698,19 +683,19 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
   return wrapper(
     <div
       className={[
-        'rounded-[20px] px-5 py-4.5 transition-all duration-300',
+        'rounded-[18px] px-4.5 py-4 transition-all duration-300',
         isAI
-          ? 'bg-[rgba(214,106,62,0.08)] border border-[rgba(214,106,62,0.25)] shadow-[0_4px_20px_rgba(214,106,62,0.05),inset_0_1px_0_rgba(255,255,255,0.05)]'
-          : 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]',
+          ? 'bg-gradient-to-br from-amber-500/[0.08] to-orange-500/[0.03] border border-amber-500/25 shadow-[0_4px_25px_rgba(214,106,62,0.08),inset_0_1px_0_rgba(255,255,255,0.06)]'
+          : 'bg-white/[0.025] hover:bg-white/[0.04] border border-white/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]',
       ].join(' ')}
     >
       <p
-        className="text-[#f9f3eb] text-[14.5px] leading-[1.6] whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+        className="text-[#fcf8f2] text-[14.5px] leading-[1.6] whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
         style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 400 }}
       >
         {response.content}
       </p>
-      <div className="flex items-center justify-between text-[11.5px] text-[#8a7f79] mt-3.5 relative">
+      <div className="flex items-center justify-between text-[11px] text-[#8a7f79] mt-3 relative">
         <span className="flex items-center gap-1 font-bold" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
           {isAI ? (
             <AiLabel />
@@ -718,7 +703,7 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
             'someone'
           )}
         </span>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {localStorage.getItem('ember_admin') === 'true' && onDeleteReply && (
             <button
               onClick={() => onDeleteReply(response.id)}
@@ -746,12 +731,12 @@ function ResponseItem({ response, index, onDeleteReply }: { response: ThoughtRes
           {showThanks && (
             <motion.div
               initial={{ opacity: 0, y: 0, scale: 0.5 }}
-              animate={{ opacity: [0, 1, 0], y: -30, scale: 1.5 }}
+              animate={{ opacity: [0, 1, 0], y: -26, scale: 1.4 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 1 }}
               className="absolute right-0 bottom-4 pointer-events-none text-[#D66A3E]"
             >
-              <Heart size={16} fill="#D66A3E" />
+              <Heart size={15} fill="#D66A3E" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -780,7 +765,6 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
     responsesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [thought.responses.length]);
 
-  // Return the promise so the tabs can keep the user's note/recording if sending fails or is blocked.
   const handleSendNote = useCallback((text: string) => {
     return onAddResponse({ type: 'note', content: text });
   }, [onAddResponse]);
@@ -801,18 +785,11 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
     onAddResponse({ type: 'sticker', content: 'sticker_hug' });
   }, [onAddResponse]);
 
-  const VARIANT_GLOWS = {
-    warm: 'border-[rgba(214,106,62,0.35)] shadow-[0_8px_32px_rgba(214,106,62,0.18),inset_0_1px_0_rgba(255,255,255,0.08)] bg-[linear-gradient(135deg,rgba(38,24,20,0.75),rgba(20,13,11,0.75))]',
-    light: 'border-[rgba(235,190,100,0.22)] shadow-[0_8px_32px_rgba(235,190,100,0.1),inset_0_1px_0_rgba(255,255,255,0.08)] bg-[linear-gradient(135deg,rgba(26,24,18,0.75),rgba(15,14,11,0.75))]',
-    teal: 'border-[rgba(20,184,166,0.25)] shadow-[0_8px_32px_rgba(20,184,166,0.1),inset_0_1px_0_rgba(255,255,255,0.08)] bg-[linear-gradient(135deg,rgba(15,26,26,0.75),rgba(9,15,15,0.75))]',
-    rose: 'border-[rgba(244,63,94,0.25)] shadow-[0_8px_32px_rgba(244,63,94,0.1),inset_0_1px_0_rgba(255,255,255,0.08)] bg-[linear-gradient(135deg,rgba(28,16,20,0.75),rgba(16,9,12,0.75))]'
-  };
-
   const tabs: { id: ResponseMode; label: string; icon: React.ReactNode }[] = [
-    { id: 'note', label: 'Note', icon: <Feather size={12} /> },
-    { id: 'voice', label: 'Voice', icon: <Mic size={12} /> },
-    { id: 'draw', label: 'Draw', icon: <Brush size={12} /> },
-    { id: 'sticker', label: 'Sticker', icon: <Sparkles size={12} /> },
+    { id: 'note', label: 'Note', icon: <Feather size={13} /> },
+    { id: 'voice', label: 'Voice', icon: <Mic size={13} /> },
+    { id: 'draw', label: 'Draw', icon: <Brush size={13} /> },
+    { id: 'sticker', label: 'Sticker', icon: <Sparkles size={13} /> },
   ];
 
   return (
@@ -823,105 +800,147 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
     >
-      {/* Dark Backdrop (No blur for performance) */}
+      {/* Dark Dim Backdrop */}
       <div
-        className="absolute inset-0"
-        style={{ background: 'rgba(5,3,8,0.5)' }}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
 
-      {/* Side Sheet */}
+      {/* Side Sheet Sanctuary Drawer */}
       <motion.div
-        className="relative w-full sm:max-w-[460px] h-[100dvh] bg-[radial-gradient(ellipse_at_top_right,rgba(32,18,48,0.96),rgba(14,10,20,0.98))] backdrop-blur-3xl border-l border-[rgba(255,255,255,0.08)] shadow-[-15px_0_50px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden"
+        className="relative w-full sm:max-w-[460px] h-[100dvh] bg-[#0c0812]/95 backdrop-blur-2xl border-l border-white/[0.08] shadow-[-20px_0_60px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden"
         initial={{ x: "100%" }}
         animate={{ x: "0%" }}
         exit={{ x: "100%" }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       >
-        {/* Close button */}
-        <motion.button
-          onClick={onClose}
-          aria-label="Close modal"
-          className="absolute top-4 right-4 z-20 w-[32px] h-[32px] rounded-full bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] flex items-center justify-center text-[#e8e2dd] hover:text-[#fffcf9] transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D66A3E] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.08)]"
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.92 }}
-        >
-          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-            <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-          </svg>
-        </motion.button>
+        {/* Soft atmospheric ambient backlight in corner */}
+        <div
+          className="absolute -top-24 -right-24 w-80 h-80 rounded-full pointer-events-none opacity-20 blur-3xl"
+          style={{
+            background: thought.lantern ? thought.lantern.palette[0] : '#D66A3E'
+          }}
+        />
 
-        {/* Delete thought button (visible to author OR admin) */}
-        {(thought.authorId === localStorage.getItem('anon_user_id') || localStorage.getItem('ember_admin') === 'true') && onDeleteThought && (
-          <motion.button
-            onClick={() => onDeleteThought(thought.id)}
-            aria-label="Return thought to ash"
-            className="absolute top-4 right-13 z-20 w-[32px] h-[32px] rounded-full bg-[rgba(239,68,68,0.06)] border border-[rgba(239,68,68,0.35)] flex items-center justify-center text-red-400 hover:text-red-300 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 shadow-[0_0_12px_rgba(239,68,68,0.2),inset_0_1px_0_rgba(255,255,255,0.05)] hover:shadow-[0_0_20px_rgba(239,68,68,0.5)] hover:border-[rgba(239,68,68,0.6)] hover:bg-[rgba(239,68,68,0.12)]"
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
-          >
-            <Trash2 size={15} />
-          </motion.button>
-        )}
+        {/* Top Header Bar */}
+        <div className="flex items-center justify-between px-5 pt-4 pb-2 relative z-20">
+          <div className="flex items-center gap-2">
+            <span
+              className="text-[12px] font-bold text-[#f9f3eb]/70 tracking-widest uppercase"
+              style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
+            >
+              Whisper
+            </span>
+          </div>
 
-        {/* Main content wrapper (blurred during tutorial reply step) */}
+          <div className="flex items-center gap-2">
+            {/* Delete thought button (visible to author OR admin) */}
+            {(thought.authorId === localStorage.getItem('anon_user_id') || localStorage.getItem('ember_admin') === 'true') && onDeleteThought && (
+              <motion.button
+                onClick={() => onDeleteThought(thought.id)}
+                aria-label="Return thought to ash"
+                className="w-[30px] h-[30px] rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 hover:text-red-300 transition-all cursor-pointer shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                title="Return thought to ash"
+              >
+                <Trash2 size={13} />
+              </motion.button>
+            )}
+
+            {/* Close button */}
+            <motion.button
+              onClick={onClose}
+              aria-label="Close modal"
+              className="w-[30px] h-[30px] rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#e8e2dd] hover:text-white transition-all cursor-pointer shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] hover:bg-white/10"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+            >
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </motion.button>
+          </div>
+        </div>
+
+        {/* Main Content Area */}
         <div className={tutorialStep === 'reply' ? 'flex-1 flex flex-col min-h-0 blur-[3px] opacity-40 pointer-events-none transition-all duration-300' : 'flex-1 flex flex-col min-h-0 transition-all duration-300'}>
           {/* Crisis Help Card if flagged */}
           {thought.showHelp && (
-            <div className="px-4 pt-4 sm:px-6">
+            <div className="px-4 pt-2 sm:px-6">
               <CrisisCard inline />
             </div>
           )}
 
-          {/* Thought display — Deep Card */}
-          <div className="px-4 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-5">
+          {/* Thought display — Luminous Sanctuary Card */}
+          <div className="px-4 pt-2 pb-3 sm:px-6 sm:pt-3 sm:pb-3">
             <div
               ref={cardRef}
-              className={[
-                'rounded-[18px] sm:rounded-[22px] px-4 py-4 sm:px-6 sm:py-5 relative overflow-hidden transition-all duration-300 border',
-                VARIANT_GLOWS[thought.variant] || VARIANT_GLOWS.warm
-              ].join(' ')}
+              className="rounded-[22px] p-5 sm:p-5.5 relative overflow-hidden transition-all duration-300 border border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-white/[0.015] shadow-[0_12px_40px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.06)]"
               style={thought.lantern ? {
-                borderColor: `${thought.lantern.palette[1]}66`,
-                boxShadow: `0 8px 32px ${thought.lantern.palette[1]}28, inset 0 1px 0 rgba(255,255,255,0.08)`,
+                borderColor: `${thought.lantern.palette[1]}35`,
+                boxShadow: `0 12px 40px rgba(0,0,0,0.5), 0 0 35px ${thought.lantern.palette[1]}15, inset 0 1px 0 rgba(255,255,255,0.06)`,
               } : undefined}
             >
+              {/* Subtle ambient light gradient in top corner */}
+              <div
+                className="absolute top-0 right-0 w-36 h-36 rounded-full pointer-events-none opacity-20 blur-2xl"
+                style={{
+                  background: thought.lantern ? thought.lantern.palette[0] : '#D66A3E'
+                }}
+              />
+
               {/* Hug pulse animation */}
               <AnimatePresence>
                 {showHugPulse && (
                   <motion.div
                     className="absolute inset-0 z-0 bg-[#D66A3E]"
-                    initial={{ opacity: 0.5, scale: 0.9 }}
-                    animate={{ opacity: 0, scale: 1.1 }}
+                    initial={{ opacity: 0.4, scale: 0.95 }}
+                    animate={{ opacity: 0, scale: 1.15 }}
                     exit={{ opacity: 0 }}
-                    transition={{ duration: 1.5, ease: "easeOut" }}
+                    transition={{ duration: 1.4, ease: "easeOut" }}
                   />
                 )}
               </AnimatePresence>
 
-              {/* Lantern Poetic Mood Bar */}
-              {thought.lantern && (
-                <div className="flex items-center gap-2 mb-3 relative z-10 pr-20">
+              {/* Top metadata row: Emotion pill + Hug button */}
+              <div className="flex items-center justify-between gap-3 mb-3 relative z-10">
+                <div className="flex items-center gap-2">
                   <div
                     className="w-2.5 h-2.5 rounded-full animate-pulse flex-shrink-0"
                     style={{
-                      backgroundColor: thought.lantern.palette[0] || '#FFB347',
-                      boxShadow: `0 0 10px ${thought.lantern.palette[1] || '#D66A3E'}`
+                      backgroundColor: thought.lantern?.palette[0] || '#FFB347',
+                      boxShadow: `0 0 10px ${thought.lantern?.palette[1] || '#D66A3E'}`
                     }}
                   />
                   {thought.emotion && (
-                    <span className="text-[11px] uppercase tracking-wider font-semibold text-[#f9f3eb]/70 whitespace-nowrap" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
-                      {thought.emotion} · {thought.lantern.shape}
+                    <span
+                      className="text-[11px] uppercase tracking-widest font-bold text-[#f9f3eb]/75 whitespace-nowrap"
+                      style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
+                    >
+                      {thought.emotion} · {thought.lantern?.shape || 'lantern'}
                     </span>
                   )}
                 </div>
-              )}
+
+                {/* Hug Button */}
+                <motion.button
+                  onClick={handleHug}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 hover:bg-amber-500/20 text-[#FFB347] border border-amber-500/25 transition-all cursor-pointer shadow-[0_0_12px_rgba(255,179,71,0.15)]"
+                  whileTap={{ scale: 0.92 }}
+                  whileHover={{ scale: 1.05 }}
+                  aria-label="Send a hug"
+                >
+                  <Heart size={13} fill={showHugPulse ? "#FFB347" : "none"} /> 
+                  <span className="text-[11.5px] font-bold" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>Hug</span>
+                </motion.button>
+              </div>
 
               {/* Network Connection context from ember-network */}
               {thought.emotion && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-[12px] bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.07)] mb-3 relative z-10 max-w-fit">
+                <div className="flex items-center gap-2 px-3 py-1 rounded-[12px] bg-white/[0.03] border border-white/[0.06] mb-3 relative z-10 w-fit">
                   <span className="text-[#FFB347] text-xs">✦</span>
-                  <span className="text-[12px] text-[#ffd9c2] tracking-wide" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
+                  <span className="text-[11.5px] text-[#ffd9c2]/90 tracking-wide" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
                     {sameFeelingCount > 0
                       ? `Connected to ${sameFeelingCount} other ${sameFeelingCount === 1 ? 'person' : 'people'} who felt ${thought.emotion} tonight.`
                       : `The first ${thought.emotion} light tonight.`}
@@ -929,38 +948,27 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
                 </div>
               )}
 
-              {/* Hug Button */}
-              <div className="absolute top-4 right-14 z-10">
-                <motion.button
-                  onClick={handleHug}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[rgba(214,106,62,0.15)] hover:bg-[rgba(214,106,62,0.3)] text-[#D66A3E] border border-[rgba(214,106,62,0.3)] transition-colors cursor-pointer"
-                  whileTap={{ scale: 0.9 }}
-                  whileHover={{ scale: 1.05 }}
-                >
-                  <Heart size={14} fill={showHugPulse ? "#D66A3E" : "none"} /> 
-                  <span className="text-[12px] font-bold" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>Hug</span>
-                </motion.button>
-              </div>
-
+              {/* The Whisper content */}
               <p
-                className="text-[#f9f3eb] pr-[76px] sm:pr-[110px] select-none relative z-10 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+                className="text-[#fffcf9] select-text relative z-10 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
                 style={{
                   fontFamily: "'Alegreya', serif",
                   fontWeight: 400,
-                  fontSize: 'clamp(14px, 3.5vw, 18px)',
-                  lineHeight: '1.6',
-                  textShadow: '0 2px 4px rgba(0,0,0,0.4)'
+                  fontSize: 'clamp(15px, 3.8vw, 18.5px)',
+                  lineHeight: '1.65',
+                  textShadow: '0 2px 8px rgba(0,0,0,0.5)'
                 }}
               >
                 {thought.text}
               </p>
-              {/* Amber divider */}
+
+              {/* Ambient thin divider */}
               <div
-                className="my-3 relative z-10"
-                style={{ height: '1px', background: 'rgba(214,106,62,0.3)', width: '72px', boxShadow: '0 0 8px rgba(214,106,62,0.5)' }}
+                className="my-3 relative z-10 h-[1px] bg-gradient-to-r from-[#D66A3E]/40 to-transparent w-[90px]"
               />
+
               <p
-                className="text-[#e2d9d1] text-[12px] relative z-10"
+                className="text-[#8a7f79] text-[11.5px] relative z-10 tracking-wide"
                 style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
               >
                 released {relativeTime(thought.timestamp)} · {thought.responses.length}{' '}
@@ -969,31 +977,31 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
             </div>
           </div>
 
-          {/* Responses */}
+          {/* Responses Feed with Custom Ember Scrollbar */}
           <div
-            className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 sm:px-6 min-h-0 max-w-full"
+            className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-2 sm:px-6 min-h-0 max-w-full ember-scrollbar"
             aria-live="polite"
             role="log"
             aria-label="Responses"
           >
             {thought.responses.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center opacity-80">
-                <Leaf size={34} className="mb-3 text-[#10b981] drop-shadow-[0_0_15px_rgba(16,185,129,0.4)]" />
+              <div className="flex flex-col items-center justify-center py-8 text-center opacity-70">
+                <Leaf size={30} className="mb-2.5 text-[#10b981] drop-shadow-[0_0_15px_rgba(16,185,129,0.4)]" />
                 <p
-                  className="text-[#e8e2dd] text-[15px]"
+                  className="text-[#e8e2dd] text-[14px] font-bold"
                   style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
                 >
                   Be the first to respond
                 </p>
                 <p
-                  className="text-[#8a7f79] text-[13px] mt-1 max-w-[260px]"
+                  className="text-[#8a7f79] text-[12px] mt-0.5 max-w-[240px]"
                   style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
                 >
                   A note, a sticker, a drawing — any warmth counts.
                 </p>
               </div>
             ) : (
-              <div className="flex flex-col gap-3 max-w-full">
+              <div className="flex flex-col gap-2.5 max-w-full">
                 {thought.responses.map((r, i) => (
                   <ResponseItem key={r.id} response={r} index={i} onDeleteReply={(replyId) => onDeleteReply && onDeleteReply(thought.id, replyId)} />
                 ))}
@@ -1003,52 +1011,52 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
           </div>
         </div>
 
-        {/* Sticker sent celebration */}
+        {/* Sticker sent celebration animation */}
         <AnimatePresence>
           {sentSticker && (
             <motion.div
-              className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"
+              className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
               initial={{ opacity: 0, scale: 0.5 }}
               animate={{ opacity: 1, scale: 1.15 }}
               exit={{ opacity: 0, scale: 0.85, y: -24 }}
               transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
             >
-              <StickerIcon nameOrEmoji={sentSticker} size={120} className="drop-shadow-[0_0_40px_rgba(214,106,62,0.6)]" />
+              <StickerIcon nameOrEmoji={sentSticker} size={110} className="drop-shadow-[0_0_40px_rgba(214,106,62,0.6)]" />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Response area */}
+        {/* Bottom Whisper Input Dock */}
         <div 
           className={[
-            "border-t px-4 pt-4 pb-5 sm:px-6 sm:pt-5 sm:pb-6 transition-all duration-300 relative",
+            "border-t px-4 pt-3.5 pb-4 sm:px-6 sm:pt-4 sm:pb-5 transition-all duration-300 relative bg-[#0e0a14]/90 backdrop-blur-md",
             tutorialStep === 'reply' 
-              ? "border-[#D66A3E] bg-[rgba(214,106,62,0.05)] shadow-[0_0_30px_rgba(214,106,62,0.15)] z-30" 
-              : "border-[rgba(255,255,255,0.06)] bg-[rgba(10,5,15,0.4)]"
+              ? "border-[#D66A3E] bg-[rgba(214,106,62,0.06)] shadow-[0_0_30px_rgba(214,106,62,0.15)] z-30" 
+              : "border-white/[0.06]"
           ].join(" ")}
         >
           {tutorialStep === 'reply' && (
-            <div className="absolute top-[-96px] left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[320px] pointer-events-none">
+            <div className="absolute top-[-92px] left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[320px] pointer-events-none">
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-[rgba(20,15,25,0.98)] backdrop-blur-xl border border-[rgba(214,106,62,0.4)] rounded-[20px] px-5 py-4 text-center shadow-[0_12px_40px_rgba(0,0,0,0.6),_0_0_20px_rgba(214,106,62,0.15)] relative"
               >
-                <p className="text-[#f9f3eb] text-[14px] font-medium leading-relaxed" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
+                <p className="text-[#f9f3eb] text-[13.5px] font-medium leading-relaxed" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
                   Ember is about quiet support. Tap a sticker to send it and complete the tour!
                 </p>
-                {/* Arrow pointing down */}
                 <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-[rgba(20,15,25,0.98)] border-r border-b border-[rgba(214,106,62,0.4)]" />
               </motion.div>
             </div>
           )}
+
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.2 }}
           >
-            {/* Tab pills */}
-            <div className="flex gap-1.5 sm:gap-2 mb-4 sm:mb-5">
+            {/* Minimalist Segmented Tab Pills */}
+            <div className="flex gap-1.5 p-1 rounded-[16px] bg-white/[0.03] border border-white/[0.06] mb-3">
               {tabs.map(tab => (
                 <button
                   key={tab.id}
@@ -1056,23 +1064,22 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
                     setMode(tab.id);
                     if (tab.id === 'draw') onOpenDraw();
                   }}
-                  className="relative flex-1 h-[38px] sm:h-[44px] rounded-[19px] sm:rounded-[22px] overflow-hidden"
-                  style={{ border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}
+                  className="relative flex-1 h-[34px] sm:h-[36px] rounded-[12px] overflow-hidden transition-all cursor-pointer"
                 >
-                  {/* Sliding active pill */}
+                  {/* Sliding active pill with subtle warm glow */}
                   {mode === tab.id && (
                     <motion.div
                       layoutId="tab-pill"
-                      className="absolute inset-0 rounded-[22px] bg-[rgba(214,106,62,0.2)] border border-[rgba(214,106,62,0.4)]"
+                      className="absolute inset-0 rounded-[12px] bg-gradient-to-r from-[#D66A3E]/25 to-[#F28A4B]/20 border border-[#D66A3E]/45 shadow-[0_0_12px_rgba(214,106,62,0.2)]"
                       transition={{ type: 'spring', bounce: 0.18, duration: 0.38 }}
                     />
                   )}
                   <span
                     className={[
-                      'relative z-10 flex items-center justify-center gap-1 sm:gap-1.5 h-full text-[11px] sm:text-[13px] transition-colors duration-200',
-                      mode === tab.id ? 'text-[#fffcf9] drop-shadow-md' : 'text-[#8a7f79]',
+                      'relative z-10 flex items-center justify-center gap-1.5 h-full text-[11.5px] sm:text-[12.5px] transition-colors duration-200',
+                      mode === tab.id ? 'text-[#fffcf9] font-bold drop-shadow' : 'text-[#8a7f79] hover:text-[#e8e2dd] font-medium',
                     ].join(' ')}
-                    style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 700 }}
+                    style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
                   >
                     {tab.icon}
                     {tab.label}
@@ -1081,15 +1088,15 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
               ))}
             </div>
 
-            {/* Tab content */}
+            {/* Active Tab Content */}
             <AnimatePresence mode="wait">
               {mode === 'note' && (
                 <motion.div
                   key="note"
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16 }}
                 >
                   <NoteTab onSend={handleSendNote} />
                 </motion.div>
@@ -1097,10 +1104,10 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
               {mode === 'voice' && (
                 <motion.div
                   key="voice"
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16 }}
                 >
                   <VoiceTab onSend={handleSendVoice} />
                 </motion.div>
@@ -1108,10 +1115,10 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
               {mode === 'sticker' && (
                 <motion.div
                   key="sticker"
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16 }}
                 >
                   <StickerTab onSend={handleSendSticker} />
                 </motion.div>
@@ -1119,28 +1126,26 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
               {mode === 'draw' && (
                 <motion.div
                   key="draw"
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.18 }}
-                  className="flex flex-col items-center py-5"
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.16 }}
+                  className="flex flex-col items-center justify-center py-4 text-center"
                 >
                   <p
-                    className="text-[#8a7f79] text-[14px] mb-5 text-center"
+                    className="text-[#8a7f79] text-[13px] mb-3"
                     style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
                   >
-                    A quick mark or sketch when words are too much.
+                    Draw a small lantern sketch to send warmth
                   </p>
-                  <motion.button
+                  <button
                     onClick={onOpenDraw}
-                    className="bg-[rgba(214,106,62,0.2)] border border-[rgba(214,106,62,0.4)] text-[#fffcf9] rounded-[18px] px-8 h-[52px]"
-                    style={{ fontFamily: "'Alegreya Sans', sans-serif", fontWeight: 700, fontSize: 16 }}
-                    whileHover={{ boxShadow: '0 0 25px rgba(214,106,62,0.4)', scale: 1.02, backgroundColor: 'rgba(214,106,62,0.3)' }}
-                    whileTap={{ scale: 0.97 }}
-                    transition={{ duration: 0.15 }}
+                    className="px-5 h-[36px] rounded-[14px] bg-gradient-to-r from-[#D66A3E] to-[#F28A4B] text-white font-bold text-[13px] shadow-[0_0_15px_rgba(214,106,62,0.35)] cursor-pointer hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5"
+                    style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
                   >
-                    Open drawing canvas
-                  </motion.button>
+                    <Brush size={14} />
+                    Open Drawing Canvas
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>

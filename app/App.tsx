@@ -76,6 +76,48 @@ export interface Thought {
   isExample?: boolean;
 }
 
+export interface ActiveToastData {
+  id: string;
+  thought: Thought;
+  title: string;
+  subtitle: string;
+  isAI?: boolean;
+}
+
+function playNotificationChime() {
+  try {
+    if (localStorage.getItem('ember_sound') !== 'on') return;
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, now); // D5
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880, now + 0.12); // A5
+
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.08, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start(now);
+    osc1.stop(now + 0.5);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.9);
+  } catch {
+    // Autoplay policy or unsupported audio context
+  }
+}
+
 const getRandomOffset = (range: number) => (Math.random() - 0.5) * range;
 
 type ActiveView = 'space' | 'compose' | 'thoughtDetail' | 'history' | 'replyDetail';
@@ -107,7 +149,9 @@ export default function App() {
       setShowOnboarding(true);
     }
   }, []);
-  const [activeToast, setActiveToast] = useState<{ id: string; thought: Thought } | null>(null);
+  const [activeToast, setActiveToast] = useState<ActiveToastData | null>(null);
+  const [hasUnreadNotification, setHasUnreadNotification] = useState(false);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [panToTarget, setPanToTarget] = useState<{ x: number; y: number } | null>(null);
   const [globalAiAudioPlaying, setGlobalAiAudioPlaying] = useState(false);
   // One popup (SafeSpaceGuard) for blocked posts/replies and send errors, instead of alert().
@@ -172,6 +216,123 @@ export default function App() {
   demoEnabledRef.current = !!demoEnabled;
 
 
+  const selectedThoughtRef = useRef(selectedThought);
+  useEffect(() => {
+    selectedThoughtRef.current = selectedThought;
+  }, [selectedThought]);
+
+  const lastNotifyCheckRef = useRef(0);
+
+  const triggerToast = useCallback((toastData: ActiveToastData) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setActiveToast(toastData);
+    toastTimerRef.current = setTimeout(() => {
+      setActiveToast(null);
+    }, 6000);
+  }, []);
+
+  const checkNotifications = useCallback(async (currentThoughts: Thought[]) => {
+    const nowMs = Date.now();
+    if (nowMs - lastNotifyCheckRef.current < 4000) return;
+    lastNotifyCheckRef.current = nowMs;
+
+    let owned: Record<string, string> = {};
+    try {
+      owned = JSON.parse(localStorage.getItem('ember_owner_tokens') || '{}');
+    } catch {
+      owned = {};
+    }
+
+    if (!owned || Object.keys(owned).length === 0) return;
+
+    const storedSince = localStorage.getItem('ember_notify_since');
+    try {
+      const res = await fetch(`${SERVER_URL}/notifications`, {
+        method: 'POST',
+        headers: {
+          apikey: publicAnonKey,
+          Authorization: `Bearer ${publicAnonKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          owned,
+          since: storedSince ?? undefined,
+        }),
+      });
+
+      if (!res.ok) return;
+      const data = await res.json();
+      const { notifications, now } = data || {};
+      if (now) {
+        localStorage.setItem('ember_notify_since', now);
+      }
+
+      // If this is the absolute first check and no baseline timestamp exists,
+      // save now as baseline to prevent an initial burst of historical replies from last 24h
+      if (!storedSince) {
+        return;
+      }
+
+      if (!Array.isArray(notifications) || notifications.length === 0) {
+        return;
+      }
+
+      // Filter out notifications for thoughts currently open in detail panel
+      const validNotifications = notifications.filter(
+        (n: any) => selectedThoughtRef.current?.id !== n.thoughtId
+      );
+      if (validNotifications.length === 0) return;
+
+      const newest = validNotifications[validNotifications.length - 1];
+      const targetThought = currentThoughts.find((t) => t.id === newest.thoughtId) || {
+        id: newest.thoughtId,
+        text: newest.thoughtText || 'Your lantern',
+        timestamp: new Date(newest.timestamp),
+        rotation: 0,
+        x: 0,
+        y: 0,
+        homeX: 0,
+        homeY: 0,
+        responses: [],
+      } as Thought;
+
+      let title = '';
+      if (validNotifications.length > 1) {
+        title = `${validNotifications.length} new replies`;
+      } else {
+        if (newest.isAI) {
+          title = '✦ Ember answered';
+        } else if (newest.type === 'note') {
+          title = 'Someone answered your lantern';
+        } else if (newest.type === 'voice') {
+          title = 'Someone sent you a voice note';
+        } else if (newest.type === 'drawing') {
+          title = 'Someone drew something for you';
+        } else if (newest.type === 'sticker') {
+          title = 'Someone sent you a sticker';
+        } else {
+          title = 'Someone answered your lantern';
+        }
+      }
+
+      const subtitle = newest.preview
+        ? `"${newest.preview}"`
+        : (newest.thoughtText || targetThought.text);
+
+      playNotificationChime();
+      setHasUnreadNotification(true);
+      triggerToast({
+        id: newest.replyId,
+        thought: targetThought,
+        title,
+        subtitle,
+        isAI: newest.isAI,
+      });
+    } catch (err) {
+      console.warn('Failed to fetch notifications:', err);
+    }
+  }, [triggerToast]);
+
   // Fetch thoughts — reads directly from the KV table to avoid edge function cold-start/EPIPE issues
   const fetchThoughts = useCallback(async () => {
     try {
@@ -223,6 +384,9 @@ export default function App() {
         });
         return [...parsedData, ...localOnly];
       });
+
+      // Check for new replies to owned lanterns (throttled to 5s)
+      checkNotifications(parsedData);
     } catch (err) {
       console.warn('API getThoughts failed:', err);
     } finally {
@@ -379,12 +543,19 @@ export default function App() {
   }, [fetchThoughts]);
 
   const handleToastClick = useCallback((thought: Thought) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
     setPanToTarget({ x: thought.x, y: thought.y });
     setAiGlowThoughtId(thought.id);
+    setSelectedThought(thought);
+    setActiveView('thoughtDetail');
     setTimeout(() => {
       setAiGlowThoughtId(current => current === thought.id ? null : current);
     }, 4000);
     setActiveToast(null);
+    setHasUnreadNotification(false);
   }, []);
 
   const handleDeleteThought = useCallback(async (thoughtId: string) => {
@@ -457,6 +628,7 @@ export default function App() {
   const handleThoughtClick = (thought: Thought) => {
     setSelectedThought(thought);
     setActiveView('thoughtDetail');
+    setHasUnreadNotification(false);
     if (tutorialStep === 'star') {
       setTutorialStep('reply');
     }
@@ -520,6 +692,10 @@ export default function App() {
             timestamp: new Date(r.timestamp),
           })),
         };
+
+        if (!localStorage.getItem('ember_notify_since')) {
+          localStorage.setItem('ember_notify_since', new Date().toISOString());
+        }
 
         setThoughts(prev => [...prev.filter(t => t.id !== created.id), created]);
         setActiveView('space');
@@ -812,7 +988,10 @@ export default function App() {
         onInputClick={handleInputClick}
         onThoughtClick={handleThoughtClick}
         onReplyClick={handleReplyClick}
-        onHistoryClick={() => setActiveView('history')}
+        onHistoryClick={() => {
+          setHasUnreadNotification(false);
+          setActiveView('history');
+        }}
         onThoughtMove={handleThoughtMove}
         aiGlowThoughtId={aiGlowThoughtId}
         voiceCount={voiceCount + demoOnline}
@@ -821,6 +1000,7 @@ export default function App() {
         tutorialStep={tutorialStep}
         setTutorialStep={setTutorialStep}
         onTriggerPanToStar={() => setPanToTarget({ x: 0, y: -80 })}
+        hasUnreadHistory={hasUnreadNotification}
       />
       <ScreenGlow isPlaying={globalAiAudioPlaying} />
       {notice && (
@@ -953,22 +1133,22 @@ export default function App() {
       <AnimatePresence>
         {activeToast && (
           <motion.div
-            initial={{ opacity: 0, y: 50, x: "-50%", scale: 0.95 }}
+            initial={{ opacity: 0, y: -40, x: "-50%", scale: 0.95 }}
             animate={{ opacity: 1, y: 0, x: "-50%", scale: 1 }}
-            exit={{ opacity: 0, y: 20, x: "-50%", scale: 0.95 }}
-            className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[110] w-[90%] max-w-[420px] bg-[rgba(20,15,25,0.9)] backdrop-blur-xl border border-[rgba(214,106,62,0.3)] rounded-[20px] px-5 py-4 shadow-[0_12px_40px_rgba(0,0,0,0.6),_0_0_20px_rgba(214,106,62,0.1)] flex items-center justify-between gap-4 cursor-pointer hover:bg-[rgba(30,24,35,0.95)] hover:border-[rgba(214,106,62,0.5)] transition-all active:scale-[0.99]"
+            exit={{ opacity: 0, y: -20, x: "-50%", scale: 0.95 }}
+            className="fixed top-6 sm:top-8 left-1/2 -translate-x-1/2 z-[150] w-[92%] max-w-[440px] bg-[rgba(16,12,22,0.96)] backdrop-blur-2xl border border-[rgba(214,106,62,0.45)] rounded-[22px] px-5 py-3.5 shadow-[0_16px_50px_rgba(0,0,0,0.85),_0_0_25px_rgba(214,106,62,0.2)] flex items-center justify-between gap-4 cursor-pointer hover:bg-[rgba(24,18,32,0.98)] hover:border-[rgba(214,106,62,0.7)] transition-all active:scale-[0.99]"
             onClick={() => handleToastClick(activeToast.thought)}
           >
             <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-[rgba(214,106,62,0.15)] flex items-center justify-center text-[#D66A3E] border border-[rgba(214,106,62,0.3)] animate-pulse shrink-0">
+              <div className="w-10 h-10 rounded-full bg-[rgba(214,106,62,0.18)] flex items-center justify-center text-[#D66A3E] border border-[rgba(214,106,62,0.4)] animate-pulse shrink-0 shadow-[0_0_12px_rgba(214,106,62,0.25)]">
                 <Sparkles size={18} />
               </div>
               <div className="flex flex-col min-w-0">
                 <span className="text-[12px] text-[#D66A3E] font-bold tracking-wider" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
-                  NEW EMBER
+                  {activeToast.title}
                 </span>
                 <p className="text-[#f9f3eb] text-[14px] font-normal leading-normal truncate mt-0.5" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
-                  {activeToast.thought.text}
+                  {activeToast.subtitle}
                 </p>
               </div>
             </div>
@@ -976,9 +1156,14 @@ export default function App() {
             <button 
               onClick={(e) => {
                 e.stopPropagation();
+                if (toastTimerRef.current) {
+                  clearTimeout(toastTimerRef.current);
+                  toastTimerRef.current = null;
+                }
                 setActiveToast(null);
               }}
               className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 text-[#8a7f79] hover:text-white transition-colors shrink-0"
+              aria-label="Close notification"
             >
               <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
                 <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />

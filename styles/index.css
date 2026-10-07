@@ -1,3 +1,23 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+/* Custom subtle night-sky scrollbar */
+.ember-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.ember-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ember-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+}
+.ember-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(214, 106, 62, 0.5);
+}
+.ember-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
