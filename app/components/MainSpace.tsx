@@ -548,8 +548,7 @@ export function MainSpace({ thoughts, selectedThoughtId, onInputClick, onThought
   const [hoveredThoughtId, setHoveredThoughtId] = useState<string | null>(null);
   const [focusEmotion, setFocusEmotion] = useState<string | null>(null);
   const [showAboutModal, setShowAboutModal] = useState(false);
-  const [showEmptyState, setShowEmptyState] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('ember_sound') === 'on');
+  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('ember_sound') !== 'off');
   useSkyAmbientSound(soundEnabled);
 
   const toggleSound = () => {

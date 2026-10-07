@@ -28,10 +28,12 @@ class CalmAmbientEngine {
   private filter: BiquadFilterNode | null = null;
   private oscillators: { osc: OscillatorNode; gain: GainNode }[] = [];
   private breezeNode: AudioNode | null = null;
+  private rainNode: AudioNode | null = null;
+  private rainGainNode: GainNode | null = null;
   private chordTimer: ReturnType<typeof setInterval> | null = null;
   private isRunning = false;
 
-  public async start(key = 'F major', volume = 0.045) {
+  public async start(key = 'F major', volume = 0.24) {
     if (this.isRunning) return;
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -39,7 +41,7 @@ class CalmAmbientEngine {
 
       this.ctx = new AudioCtx();
       if (this.ctx.state === 'suspended') {
-        await this.ctx.resume();
+        this.ctx.resume().catch(() => {});
       }
 
       this.isRunning = true;
@@ -63,6 +65,9 @@ class CalmAmbientEngine {
       // Add gentle, soft night breeze (ultra-filtered pink noise)
       this.startGentleBreeze();
 
+      // Add gentle, soothing rain layer in the background (low volume)
+      this.startGentleRain();
+
       // Cycle gently through peaceful chords every 10 seconds
       const chordKeys = Object.keys(SOOTHING_CHORDS);
       let chordIndex = chordKeys.indexOf(key);
@@ -76,6 +81,16 @@ class CalmAmbientEngine {
 
     } catch (e) {
       console.warn('[EmberAudio] Audio engine start deferred:', e);
+    }
+  }
+
+  public async resume() {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      try {
+        await this.ctx.resume();
+      } catch (e) {
+        console.warn('[EmberAudio] Resume error:', e);
+      }
     }
   }
 
@@ -93,9 +108,9 @@ class CalmAmbientEngine {
       osc.detune.setValueAtTime((i % 2 === 0 ? 3 : -3) * (i + 1), this.ctx.currentTime);
 
       const gain = this.ctx.createGain();
-      const noteGain = i === 0 ? 0.35 : 0.18 / (i + 1);
+      const noteGain = i === 0 ? 0.45 : 0.30 / Math.sqrt(i + 1);
       gain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(noteGain, this.ctx.currentTime + 3.5);
+      gain.gain.exponentialRampToValueAtTime(noteGain, this.ctx.currentTime + 3.0);
 
       osc.connect(gain);
       gain.connect(this.filter);
@@ -164,6 +179,79 @@ class CalmAmbientEngine {
     } catch {}
   }
 
+  private startGentleRain() {
+    if (!this.ctx || !this.masterGain) return;
+    try {
+      // 4 seconds of stereo pink/brown rainfall noise
+      const bufferSize = this.ctx.sampleRate * 4;
+      const noiseBuffer = this.ctx.createBuffer(2, bufferSize, this.ctx.sampleRate);
+      const left = noiseBuffer.getChannelData(0);
+      const right = noiseBuffer.getChannelData(1);
+
+      // Filtered pink noise algorithm for left and right channels to create a soothing stereo field
+      let b0L = 0, b1L = 0, b2L = 0;
+      let b0R = 0, b1R = 0, b2R = 0;
+
+      for (let i = 0; i < bufferSize; i++) {
+        const whiteL = Math.random() * 2 - 1;
+        const whiteR = Math.random() * 2 - 1;
+
+        b0L = 0.99886 * b0L + whiteL * 0.0555179;
+        b1L = 0.99332 * b1L + whiteL * 0.0750759;
+        b2L = 0.96900 * b2L + whiteL * 0.1538520;
+        let sL = (b0L + b1L + b2L + whiteL * 0.08) * 0.16;
+
+        b0R = 0.99886 * b0R + whiteR * 0.0555179;
+        b1R = 0.99332 * b1R + whiteR * 0.0750759;
+        b2R = 0.96900 * b2R + whiteR * 0.1538520;
+        let sR = (b0R + b1R + b2R + whiteR * 0.08) * 0.16;
+
+        // Occasional soft droplet patter
+        if (Math.random() < 0.002) {
+          sL += (Math.random() * 0.25 - 0.125);
+        }
+        if (Math.random() < 0.002) {
+          sR += (Math.random() * 0.25 - 0.125);
+        }
+
+        left[i] = sL;
+        right[i] = sR;
+      }
+
+      const rainSource = this.ctx.createBufferSource();
+      rainSource.buffer = noiseBuffer;
+      rainSource.loop = true;
+
+      // Bandpass filter centered around 920Hz for realistic rain patter spectrum
+      const bandpass = this.ctx.createBiquadFilter();
+      bandpass.type = 'bandpass';
+      bandpass.frequency.setValueAtTime(920, this.ctx.currentTime);
+      bandpass.Q.setValueAtTime(0.75, this.ctx.currentTime);
+
+      // Lowpass filter to ensure zero harsh digital hiss
+      const lowpass = this.ctx.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.setValueAtTime(1700, this.ctx.currentTime);
+      lowpass.Q.setValueAtTime(0.6, this.ctx.currentTime);
+
+      // Rain Gain node (low volume: gentle, soothing background drizzle)
+      const rainGain = this.ctx.createGain();
+      rainGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+      rainGain.gain.exponentialRampToValueAtTime(0.065, this.ctx.currentTime + 3.0);
+
+      rainSource.connect(bandpass);
+      bandpass.connect(lowpass);
+      lowpass.connect(rainGain);
+      rainGain.connect(this.masterGain);
+
+      rainSource.start();
+      this.rainNode = rainSource;
+      this.rainGainNode = rainGain;
+    } catch (e) {
+      console.warn('[EmberAudio] Gentle rain initialization deferred:', e);
+    }
+  }
+
   public stop() {
     this.isRunning = false;
     if (this.chordTimer) {
@@ -191,6 +279,14 @@ class CalmAmbientEngine {
     if (this.breezeNode) {
       try { (this.breezeNode as any).stop?.(); this.breezeNode.disconnect(); } catch {}
       this.breezeNode = null;
+    }
+    if (this.rainNode) {
+      try { (this.rainNode as any).stop?.(); this.rainNode.disconnect(); } catch {}
+      this.rainNode = null;
+    }
+    if (this.rainGainNode) {
+      try { this.rainGainNode.disconnect(); } catch {}
+      this.rainGainNode = null;
     }
     if (this.filter) {
       try { this.filter.disconnect(); } catch {}
@@ -222,11 +318,27 @@ export function useSkyAmbientSound(soundEnabled: boolean) {
 
     if (!globalSkyEngine) {
       globalSkyEngine = new CalmAmbientEngine();
-      globalSkyEngine.start('D minor', 0.04);
+      globalSkyEngine.start('D minor', 0.24);
+    } else {
+      globalSkyEngine.resume();
     }
 
+    // Modern browsers start AudioContext in 'suspended' state until the user makes any gesture.
+    // Listen for the first touch or click anywhere in the window to resume smoothly.
+    const handleGesture = () => {
+      if (globalSkyEngine) {
+        globalSkyEngine.resume();
+      }
+    };
+
+    window.addEventListener('pointerdown', handleGesture, { passive: true, once: true });
+    window.addEventListener('keydown', handleGesture, { passive: true, once: true });
+    window.addEventListener('touchstart', handleGesture, { passive: true, once: true });
+
     return () => {
-      // Don't kill audio on component remount unless sound is disabled
+      window.removeEventListener('pointerdown', handleGesture);
+      window.removeEventListener('keydown', handleGesture);
+      window.removeEventListener('touchstart', handleGesture);
     };
   }, [soundEnabled]);
 }
@@ -250,7 +362,7 @@ export function useLanternSound(lantern: Lantern | null, soundEnabled: boolean) 
     const key = lantern.sound?.key || 'D minor';
     const engine = new CalmAmbientEngine();
     engineRef.current = engine;
-    engine.start(key, 0.035);
+    engine.start(key, 0.20);
 
     return () => {
       if (engineRef.current) {

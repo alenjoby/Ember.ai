@@ -1155,7 +1155,7 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
   }, [allThoughts, thought.id, thought.emotion]);
 
   // Hook up Tone.js soundscape for opened thought
-  const soundEnabled = localStorage.getItem('ember_sound') === 'on';
+  const soundEnabled = localStorage.getItem('ember_sound') !== 'off';
   useLanternSound(thought.lantern || null, soundEnabled);
 
   useEffect(() => {
