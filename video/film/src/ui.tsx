@@ -159,16 +159,6 @@ export const AppClip: React.FC<{
           <div style={{ width: '100%', height: '100%', transform: `scale(${zoom})` }}>
             <OffthreadVideo src={staticFile(src)} startFrom={Math.round(from * fps)} muted style={{ width: '100%', height: '100%' }} />
           </div>
-          {/* The screen recordings show Windows' "Activate Windows" note (bottom right) and the
-              dev-only Demo/Perf buttons (bottom left): soft dark corners hide them over the sky. */}
-          <div style={{
-            position: 'absolute', right: 0, bottom: 0, width: '38%', height: '24%', pointerEvents: 'none',
-            background: 'radial-gradient(ellipse at 100% 100%, rgba(10,7,6,0.98) 62%, rgba(10,7,6,0) 92%)',
-          }} />
-          <div style={{
-            position: 'absolute', left: 0, bottom: 0, width: '18%', height: '17%', pointerEvents: 'none',
-            background: 'radial-gradient(ellipse at 0% 100%, rgba(10,7,6,0.98) 62%, rgba(10,7,6,0) 92%)',
-          }} />
         </div>
       </AbsoluteFill>
       <AbsoluteFill style={{ justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 18 }}>

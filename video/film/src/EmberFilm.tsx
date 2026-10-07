@@ -274,6 +274,9 @@ const Close: React.FC = () => {
 const RaylightShot: React.FC<{ src: string; dur: number }> = ({ src, dur }) => (
   <Fade dur={dur} inF={8} outF={8}>
     <OffthreadVideo src={staticFile(src)} volume={RAYLIGHT_GAIN} style={{ width: '100%', height: '100%' }} />
+    {/* Covers the "Made in Raylight" badge (x 1552-1891, y 978-1073) with the shots' own solid
+        background colour, measured from the export. */}
+    <div style={{ position: 'absolute', left: 1540, top: 966, right: 0, bottom: 0, background: '#110a07' }} />
   </Fade>
 );
 
