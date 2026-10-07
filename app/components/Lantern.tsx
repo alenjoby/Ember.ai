@@ -397,60 +397,22 @@ export function Lantern({
         } as React.CSSProperties}
       />
 
-      {/* Extra glow / beacon spotlight if replying or highlighted */}
-      {isGlowing ? (
-        <>
-          {/* Outward Expanding Beacon Wave Rings */}
-          <div
-            className="absolute rounded-full pointer-events-none animate-ping"
-            style={{
-              width: 220,
-              height: 220,
-              top: -15,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              border: `2px solid ${glowColor}cc`,
-              animationDuration: '2.4s',
-            }}
-          />
-          {/* Intense Ambient Radial Spotlight Aura */}
-          <div
-            className="lantern-glow absolute rounded-full pointer-events-none"
-            style={{
-              width: 320,
-              height: 320,
-              top: -65,
-              left: '50%',
-              background: `radial-gradient(circle, ${glowColor}f0 0%, ${glowColor}85 35%, ${glowColor}30 60%, transparent 80%)`,
-              filter: 'blur(6px)',
-            }}
-          />
-          {/* Floating 'New Whisper' Beacon Pin Badge */}
-          <div
-            className="absolute -top-12 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex items-center gap-1.5 px-3 py-1 rounded-full bg-[rgba(16,12,22,0.94)] border border-[rgba(214,106,62,0.7)] shadow-[0_0_25px_rgba(214,106,62,0.6)] animate-bounce"
-            style={{ animationDuration: '2.2s' }}
-          >
-            <Sparkles size={12} className="text-[#D66A3E] animate-pulse" />
-            <span
-              className="text-[12px] font-bold text-[#fffcf9] tracking-wider whitespace-nowrap"
-              style={{ fontFamily: "'Alegreya Sans', sans-serif" }}
-            >
-              New Whisper
-            </span>
-          </div>
-        </>
-      ) : isReplying ? (
+      {/* Extra ambient glow if highlighted (from notification click) or AI is replying */}
+      {(isGlowing || isReplying) && (
         <div
           className="lantern-glow absolute rounded-full pointer-events-none"
           style={{
-            width: 240,
-            height: 240,
-            top: -20,
+            width: isGlowing ? 280 : 240,
+            height: isGlowing ? 280 : 240,
+            top: isGlowing ? -40 : -20,
             left: '50%',
-            background: `radial-gradient(circle, ${glowColor}d0 0%, ${glowColor}60 38%, ${glowColor}00 75%)`,
+            background: isGlowing
+              ? `radial-gradient(circle, ${glowColor}ee 0%, ${glowColor}80 32%, ${glowColor}20 58%, transparent 75%)`
+              : `radial-gradient(circle, ${glowColor}d0 0%, ${glowColor}60 38%, ${glowColor}00 75%)`,
+            filter: isGlowing ? 'blur(8px)' : undefined,
           }}
         />
-      ) : null}
+      )}
 
       {/* Lantern Lamp Vessel & Surrounding Firefly Embers */}
       <div className="relative w-[110px] h-[165px] flex items-center justify-center">
