@@ -33,6 +33,14 @@ const CRISIS_PATTERNS: RegExp[] = [
   /\bgiving\s*(away\s*)?(all\s*)?my\s*(things|stuff|belongings)\s*away\b|\bgiving\s*away\s*(all\s*)?my\s*(things|stuff|belongings)\b/i,
   /\b(no\s*reason\s*to\s*(live|go\s*on)|don'?t\s*want\s*to\s*(be\s*here|exist|wake\s*up)(\s*anymore)?|wish\s*i\s*(was|were)\s*n'?t\s*(alive|here|born))\b/i,
   /\b(end\s*my\s*life|take\s*my\s*(own\s*)?life|not\s*be\s*around\s*much\s*longer|say(ing)?\s*goodbye\s*(to\s*everyone|forever))\b/i,
+  // Common phrasings the AI check sometimes misses ("I don't think I can do this anymore" was
+  // not flagged in a live test). Crisis messages are never blocked, so a wider net only adds help.
+  /\b(don'?t|do\s*not)\s*(think\s*)?(i\s*)?can\s*(do|take|handle|keep\s*doing)\s*(this|it)\s*(any\s*more|anymore|much\s*longer)\b/i,
+  /\b(can'?t|cannot|can\s*not)\s*(take|handle|bear|stand|go\s*on\s*with)\s*(this|it|life)\s*(any\s*more|anymore)\b/i,
+  /\b(can'?t|cannot|can\s*not)\s*go\s*on(\s*(like\s*this|any\s*more|anymore))?\b/i,
+  /\b(don'?t|do\s*not)\s*want\s*to\s*(live|be\s*alive|go\s*on)\b/i,
+  /\b(no\s*point\s*(in\s*)?(living|going\s*on|being\s*alive)|nothing\s*to\s*live\s*for|life\s*is\s*(not|n'?t)\s*worth\s*(it|living))\b/i,
+  /\b(end(ing)?\s*it(\s*all)?\s*(tonight|soon|now)|want\s*it\s*(all\s*)?to\s*(end|stop)\s*(forever|for\s*good))\b/i,
 ];
 
 const TOXIC_PATTERNS: { pattern: RegExp; weight: number; category: string }[] = [
