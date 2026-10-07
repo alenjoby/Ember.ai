@@ -1021,6 +1021,8 @@ export default function App() {
     );
   }
 
+  const showDevButtons = import.meta.env.DEV || localStorage.getItem('ember_admin') === 'true';
+
   return (
     <div className="w-full h-[100dvh] relative overflow-hidden bg-[#f9f3eb]">
       {localStorage.getItem('ember_admin') === 'true' && (
@@ -1033,7 +1035,9 @@ export default function App() {
           Clear all lanterns
         </button>
       )}
-      {import.meta.env.DEV && demoEnabled !== null && (
+      {/* Demo / Perf: always on localhost (dev); on the live site in admin mode (logo double-click),
+          so they can be used in a demo without visitors seeing them. */}
+      {showDevButtons && demoEnabled !== null && (
         <button
           onClick={toggleDemo}
           className="fixed bottom-4 left-4 z-[100] rounded-full px-3 py-1.5 text-xs font-medium shadow-md border transition-colors"
@@ -1047,7 +1051,7 @@ export default function App() {
           Demo {demoEnabled ? 'on' : 'off'}
         </button>
       )}
-      {import.meta.env.DEV && (
+      {showDevButtons && (
         <button
           onClick={() => setPerfCount(c => (c ? 0 : 100))}
           className="fixed bottom-4 left-28 z-[100] rounded-full px-3 py-1.5 text-xs font-medium shadow-md border transition-colors"
