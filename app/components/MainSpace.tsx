@@ -334,7 +334,7 @@ const ThoughtCard = React.memo(function ThoughtCard({
     <div
       ref={cardRef}
       onPointerDown={handlePointerDown}
-      className={`absolute select-none outline-none ${isDragging ? 'z-50 cursor-grabbing' : 'z-20 cursor-grab'}`}
+      className={`absolute select-none outline-none ${isDragging ? 'z-50 cursor-grabbing' : (isGlowing ? 'z-40' : 'z-20')} cursor-grab`}
       style={{
         left: thought.x,
         top: thought.y,

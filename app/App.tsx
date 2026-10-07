@@ -134,6 +134,10 @@ const initialThoughts: Thought[] = (fixtureThoughts as any[]).map((t: any) => ({
 
 export default function App() {
   const [thoughts, setThoughts] = useState<Thought[]>([]);
+  const thoughtsRef = useRef<Thought[]>([]);
+  useEffect(() => {
+    thoughtsRef.current = thoughts;
+  }, [thoughts]);
   const [activeView, setActiveView] = useState<ActiveView>('space');
   const [selectedThought, setSelectedThought] = useState<Thought | null>(null);
   const [selectedReply, setSelectedReply] = useState<ThoughtResponse | null>(null);
@@ -502,7 +506,12 @@ export default function App() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'replies' },
-        () => triggerDebouncedFetch()
+        (payload) => {
+          triggerDebouncedFetch();
+          if (payload.eventType === 'INSERT') {
+            checkNotifications(thoughtsRef.current);
+          }
+        }
       )
       .subscribe((status) => {
         realtimeConnected = status === 'SUBSCRIBED';
@@ -547,15 +556,31 @@ export default function App() {
       clearTimeout(toastTimerRef.current);
       toastTimerRef.current = null;
     }
-    setPanToTarget({ x: thought.x, y: thought.y });
-    setAiGlowThoughtId(thought.id);
-    setSelectedThought(thought);
-    setActiveView('thoughtDetail');
-    setTimeout(() => {
-      setAiGlowThoughtId(current => current === thought.id ? null : current);
-    }, 4000);
     setActiveToast(null);
     setHasUnreadNotification(false);
+
+    // Look up freshest live coordinates
+    const liveThought = thoughtsRef.current.find((t) => t.id === thought.id) || thought;
+
+    // Switch to space view so camera flight across the sky is fully visible
+    setActiveView('space');
+
+    // Pan camera smoothly across the sky directly to that lantern
+    setPanToTarget({ x: liveThought.x, y: liveThought.y });
+
+    // Illuminate that lantern with the radiant glowing beacon
+    setAiGlowThoughtId(liveThought.id);
+
+    // Keep beacon glowing for 6 seconds so user sees it in the sky
+    setTimeout(() => {
+      setAiGlowThoughtId((current) => (current === liveThought.id ? null : current));
+    }, 6000);
+
+    // Allow 1.3s for the camera to smoothly glide and pinpoint the glowing lantern before sliding in the drawer
+    setTimeout(() => {
+      setSelectedThought(liveThought);
+      setActiveView('thoughtDetail');
+    }, 1300);
   }, []);
 
   const handleDeleteThought = useCallback(async (thoughtId: string) => {
@@ -1132,48 +1157,50 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {activeToast && (
-          <motion.div
-            initial={{ opacity: 0, y: -40, x: "-50%", scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, x: "-50%", scale: 1 }}
-            exit={{ opacity: 0, y: -20, x: "-50%", scale: 0.95 }}
-            className="fixed top-6 sm:top-8 left-1/2 -translate-x-1/2 z-[150] w-[92%] max-w-[440px] bg-[rgba(16,12,22,0.96)] backdrop-blur-2xl border border-[rgba(214,106,62,0.45)] rounded-[22px] px-5 py-3.5 shadow-[0_16px_50px_rgba(0,0,0,0.85),_0_0_25px_rgba(214,106,62,0.2)] flex items-center justify-between gap-4 cursor-pointer hover:bg-[rgba(24,18,32,0.98)] hover:border-[rgba(214,106,62,0.7)] transition-all active:scale-[0.99]"
-            onClick={() => handleToastClick(activeToast.thought)}
-          >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-[rgba(214,106,62,0.18)] flex items-center justify-center text-[#D66A3E] border border-[rgba(214,106,62,0.4)] animate-pulse shrink-0 shadow-[0_0_12px_rgba(214,106,62,0.25)]">
-                <Sparkles size={18} />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-[12px] text-[#D66A3E] font-bold tracking-wider" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
-                  {activeToast.title}
-                </span>
-                <p className="text-[#f9f3eb] text-[14px] font-normal leading-normal truncate mt-0.5" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
-                  {activeToast.subtitle}
-                </p>
-              </div>
-            </div>
-            
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                if (toastTimerRef.current) {
-                  clearTimeout(toastTimerRef.current);
-                  toastTimerRef.current = null;
-                }
-                setActiveToast(null);
-              }}
-              className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 text-[#8a7f79] hover:text-white transition-colors shrink-0"
-              aria-label="Close notification"
+      <div className="fixed top-6 sm:top-8 inset-x-0 z-[150] flex justify-center pointer-events-none px-4">
+        <AnimatePresence>
+          {activeToast && (
+            <motion.div
+              initial={{ opacity: 0, y: -30, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="pointer-events-auto w-full max-w-[440px] bg-[rgba(16,12,22,0.96)] backdrop-blur-2xl border border-[rgba(214,106,62,0.45)] rounded-[22px] px-5 py-3.5 shadow-[0_16px_50px_rgba(0,0,0,0.85),_0_0_25px_rgba(214,106,62,0.2)] flex items-center justify-between gap-4 cursor-pointer hover:bg-[rgba(24,18,32,0.98)] hover:border-[rgba(214,106,62,0.7)] transition-all active:scale-[0.99]"
+              onClick={() => handleToastClick(activeToast.thought)}
             >
-              <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
-                <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-[rgba(214,106,62,0.18)] flex items-center justify-center text-[#D66A3E] border border-[rgba(214,106,62,0.4)] animate-pulse shrink-0 shadow-[0_0_12px_rgba(214,106,62,0.25)]">
+                  <Sparkles size={18} />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[12px] text-[#D66A3E] font-bold tracking-wider" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
+                    {activeToast.title}
+                  </span>
+                  <p className="text-[#f9f3eb] text-[14px] font-normal leading-normal truncate mt-0.5" style={{ fontFamily: "'Alegreya Sans', sans-serif" }}>
+                    {activeToast.subtitle}
+                  </p>
+                </div>
+              </div>
+              
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (toastTimerRef.current) {
+                    clearTimeout(toastTimerRef.current);
+                    toastTimerRef.current = null;
+                  }
+                  setActiveToast(null);
+                }}
+                className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 text-[#8a7f79] hover:text-white transition-colors shrink-0 cursor-pointer"
+                aria-label="Close notification"
+              >
+                <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
+                  <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
