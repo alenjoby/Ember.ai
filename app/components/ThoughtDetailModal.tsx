@@ -1148,7 +1148,7 @@ export function ThoughtDetailModal({ thought, allThoughts, onClose, onAddRespons
 
   const sameFeelingCount = useMemo(() => {
     if (!allThoughts || !thought.emotion) return 0;
-    return allThoughts.filter(t => t.id !== thought.id && t.emotion === thought.emotion).length;
+    return allThoughts.filter(t => !t.isExample && t.id !== thought.id && t.emotion === thought.emotion).length;
   }, [allThoughts, thought.id, thought.emotion]);
 
   // Hook up Tone.js soundscape for opened thought

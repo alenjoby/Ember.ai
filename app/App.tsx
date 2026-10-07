@@ -740,7 +740,7 @@ export default function App() {
 
         const emo = emotion || res.thought.emotion;
         if (emo) {
-          const sameFeelingCount = thoughtsRef.current.filter(t => t.emotion === emo && t.id !== created.id).length;
+          const sameFeelingCount = thoughtsRef.current.filter(t => !t.isExample && t.emotion === emo && t.id !== created.id).length;
           setNotAloneNotice({ count: sameFeelingCount, emotion: emo });
           setTimeout(() => {
             setNotAloneNotice(null);
