@@ -269,6 +269,25 @@ export default function App() {
     fetchThoughts();
   }, [demoEnabled, fetchThoughts]);
 
+  // Admin: clear every lantern and reply (DELETE /thoughts). Shown while admin mode is on.
+  const wipeSky = useCallback(async () => {
+    const adminToken = localStorage.getItem('ember_admin_token');
+    if (!adminToken) return;
+    if (!window.confirm('Delete EVERY lantern and reply for everyone? This cannot be undone.')) return;
+    const res = await fetch(`${SERVER_URL}/thoughts`, {
+      method: 'DELETE',
+      headers: { apikey: publicAnonKey, Authorization: `Bearer ${publicAnonKey}`, 'X-Admin-Token': adminToken },
+    });
+    if (res.status === 403) {
+      alert("Couldn't clear. Your admin session may have expired: double-click the logo to log out and back in.");
+      return;
+    }
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data) { alert("Couldn't clear the sky. Try again."); return; }
+    alert(`Cleared ${data.deleted} lantern${data.deleted === 1 ? '' : 's'}.`);
+    fetchThoughts();
+  }, [fetchThoughts]);
+
   useEffect(() => {
     fetchThoughts();
 
@@ -748,6 +767,16 @@ export default function App() {
 
   return (
     <div className="w-full h-[100dvh] relative overflow-hidden bg-[#f9f3eb]">
+      {localStorage.getItem('ember_admin') === 'true' && (
+        <button
+          onClick={wipeSky}
+          className="fixed bottom-14 left-4 z-[100] rounded-full px-3 py-1.5 text-xs font-medium shadow-md border transition-colors"
+          style={{ background: 'rgba(255,255,255,0.85)', color: '#b3261e', borderColor: 'rgba(179,38,30,0.35)' }}
+          title="Admin: delete every lantern and reply"
+        >
+          Clear all lanterns
+        </button>
+      )}
       {import.meta.env.DEV && demoEnabled !== null && (
         <button
           onClick={toggleDemo}
