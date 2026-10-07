@@ -273,13 +273,14 @@ const RaylightShot: React.FC<{ src: string; dur: number }> = ({ src, dur }) => (
 
 // ─── the film ───────────────────────────────────────────────────────
 
-const SCENES: { dur: number; el: React.ReactNode }[] = [
+// vo: the scene's narration (music dips under each line); speaks: Ember's voice plays (music dips for the scene).
+const SCENES: { dur: number; el: React.ReactNode; vo?: keyof typeof T; speaks?: boolean }[] = [
   { dur: s(3.6), el: <RaylightShot src="raylight-intro.mp4" dur={s(3.6)} /> },
-  { dur: s(D.hook), el: <Hook /> },
-  { dur: s(D.problem), el: <Problem /> },
-  { dur: s(D.turn), el: <Turn /> },
+  { vo: 'hook', dur: s(D.hook), el: <Hook /> },
+  { vo: 'problem', dur: s(D.problem), el: <Problem /> },
+  { vo: 'turn', dur: s(D.turn), el: <Turn /> },
   { dur: s(10), el: <RaylightShot src="raylight-lantern.mp4" dur={s(10)} /> },
-  { dur: s(D.showcase), el: <LanternShowcase /> },
+  { vo: 'showcase', dur: s(D.showcase), el: <LanternShowcase /> },
   {
     dur: s(12), el: <AppClip src="03-release.mp4" from={3} dur={s(12)} label="Release a feeling"
       caption="Anonymous. No profiles. No likes. No followers." />,
@@ -289,7 +290,7 @@ const SCENES: { dur: number; el: React.ReactNode }[] = [
       caption="Feelings like yours, connected. Live, in real time." />,
   },
   {
-    dur: s(8), el: (
+    speaks: true, dur: s(8), el: (
       <>
         <AppClip src="03-release.mp4" from={39.5} dur={s(8)} label="Ember answers"
           caption={<>If no one answers yet, Ember does: warm, spoken, and always labeled <span style={{ color: C.ember }}>✦ Ember (AI)</span></>} />
@@ -306,7 +307,7 @@ const SCENES: { dur: number; el: React.ReactNode }[] = [
       caption="Some messages are a cry for help." />,
   },
   {
-    dur: s(15), el: (
+    speaks: true, dur: s(15), el: (
       <>
         <AppClip src="05-crisis.mp4" from={16.6} dur={s(15)} label="Never silenced"
           caption="Instant warning, the right helpline for your country, and Ember's calming voice." />
@@ -314,16 +315,52 @@ const SCENES: { dur: number; el: React.ReactNode }[] = [
       </>
     ),
   },
-  { dur: s(D.dawn), el: <Dawn /> },
-  { dur: s(D.proof), el: <Proof /> },
-  { dur: s(D.close), el: <Close /> },
+  { vo: 'dawn', dur: s(D.dawn), el: <Dawn /> },
+  { vo: 'proof', dur: s(D.proof), el: <Proof /> },
+  { vo: 'close', dur: s(D.close), el: <Close /> },
   { dur: s(4), el: <RaylightShot src="raylight-outro.mp4" dur={s(4)} /> },
 ];
 
 export const FILM_FRAMES = SCENES.reduce((n, sc) => n + sc.dur, 0);
 
+// ─── music: public/music.mp3 ("Lanterns in Stillness", Eleven Music) ──
+// Under the whole film, dipping while someone speaks: each narration line and the scenes where
+// Ember's voice plays.
+const MUSIC = 0.5;   // normal level (the track itself is quiet, about -26 dB)
+const DUCKED = 0.2;  // while a voice speaks
+const RAMP = 10;     // frames to dip / come back
+
+const SPEECH: [number, number][] = (() => {
+  const out: [number, number][] = [];
+  let start = 0;
+  for (const sc of SCENES) {
+    if (sc.speaks) out.push([start, start + sc.dur]);
+    if (sc.vo) {
+      const tl = T[sc.vo];
+      tl.names.forEach((n, i) => out.push([start + s(tl.at[i]), start + s(tl.at[i] + VO_LEN[n])]));
+    }
+    start += sc.dur;
+  }
+  return out;
+})();
+
+function musicVolume(f: number) {
+  // 1 inside a speech window, easing to 0 over RAMP frames outside it.
+  let duck = 0;
+  for (const [a, b] of SPEECH) {
+    const d = f < a ? a - f : f > b ? f - b : 0;
+    duck = Math.max(duck, interpolate(d, [0, RAMP], [1, 0], { extrapolateRight: 'clamp' }));
+  }
+  const level = MUSIC + (DUCKED - MUSIC) * duck;
+  const fade = interpolate(f, [0, s(2), FILM_FRAMES - s(4), FILM_FRAMES], [0, 1, 1, 0], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  });
+  return level * fade;
+}
+
 export const EmberFilm: React.FC = () => (
   <AbsoluteFill style={{ background: '#050304' }}>
+    <Audio src={staticFile('music.mp3')} volume={musicVolume} />
     <Series>
       {SCENES.map((sc, i) => (
         <Series.Sequence key={i} durationInFrames={sc.dur}>{sc.el}</Series.Sequence>
