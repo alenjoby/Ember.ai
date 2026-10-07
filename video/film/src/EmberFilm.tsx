@@ -227,43 +227,134 @@ const Proof: React.FC = () => {
   );
 };
 
-const Close: React.FC = () => {
+// ─── close: the sky fills with lanterns, then the helplines ─────────
+// Beat 1: one lantern in the dark, "Tonight, someone is still awake." word by word.
+// Beat 2: "...alone with it." while lanterns light up one by one and rise from below, in three
+//         depths (near ones keep clear of the text, far ones drift softly behind it).
+// Beat 3: the lines lift away; a helpline card. The logo comes in the Raylight outro next.
+const CLOSE_RISERS = Array.from({ length: 46 }, (_, i) => {
+  const r = (n: number) => {
+    const v = Math.sin((i + 1) * 12.9898 * n + n * 78.233) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  const z = r(1); // depth: 0 far .. 1 near
+  let x = 40 + r(2) * 1840;
+  if (z > 0.6 && x > 520 && x < 1400) x = x < 960 ? 120 + r(5) * 330 : 1470 + r(5) * 330;
+  return {
+    i, z, x,
+    start: 0.9 + r(4) * 3.4, // seconds: when it appears and lights
+    y0: 560 + r(3) * 720, // some bloom mid-sky, some rise in from below
+    speed: 70 + z * 95, // px per second
+    size: 0.2 + z * 0.62,
+    e: Object.keys(PALETTES)[i % 6] as keyof typeof PALETTES,
+    shape: ['round', 'tall', 'paper', 'star'][Math.floor(r(6) * 4)],
+  };
+});
+
+/** Words fade up and un-blur one after another. */
+const WordReveal: React.FC<{ text: string; at: number; style?: React.CSSProperties }> = ({ text, at, style }) => {
   const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const dur = s(D.close);
-  // Logo after the second line has been said (or at 2.8 s without narration).
-  const logoAt = T.close.names.length ? T.close.at[1] + VO_LEN['close-2'] + 0.2 : 2.8;
-  const logo = spring({ frame: f - s(logoAt), fps, config: { damping: 200 } });
   return (
-    <Fade dur={dur} outF={30}>
-      <Narration tl={T.close} />
-      <Sky />
-      {Array.from({ length: 26 }, (_, i) => {
-        const e = Object.keys(PALETTES)[i % 6] as keyof typeof PALETTES;
-        const x = ((i * 397) % 1800) + 60;
-        const y = 760 - ((i * 211) % 520) - f * (0.15 + (i % 5) * 0.05);
+    <div style={{ fontFamily: serif, fontSize: 64, lineHeight: 1.2, letterSpacing: '-0.015em', textAlign: 'center', ...style }}>
+      {text.split(' ').map((w, k) => {
+        const t = interpolate(f, [s(at + k * 0.11), s(at + k * 0.11 + 0.4)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
         return (
-          <div key={i} style={{ position: 'absolute', left: x, top: y, opacity: 0.55 }}>
-            <Lantern id={`close-${i}`} palette={PALETTES[e]} shape={['round', 'tall', 'paper', 'star'][i % 4]} size={0.38} glow={0.5} seed={i} />
-          </div>
+          <span key={k} style={{
+            display: 'inline-block', marginRight: '0.26em', opacity: t,
+            transform: `translateY(${(1 - t) * 14}px)`, filter: `blur(${(1 - t) * 6}px)`,
+          }}>{w}</span>
         );
       })}
-      <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <Line at={s(T.close.at[0])}><Title size={58}>Tonight, someone is still awake.</Title></Line>
-        <Line at={s(T.close.at[1])}><Title size={58} style={{ color: C.ember }}>Now, they don't have to be alone with it.</Title></Line>
-        <div style={{ marginTop: 50, opacity: logo, textAlign: 'center' }}>
-          <div style={{ fontFamily: serif, fontWeight: 600, letterSpacing: '-0.02em', fontSize: 96, color: C.cream, textShadow: `0 0 60px ${C.ember}88` }}>
-            Ember<span style={{ color: C.ember }}>.ai</span>
-          </div>
-          <div style={{ fontFamily: sans, fontSize: 26, color: C.muted, maxWidth: 1300, margin: '0 auto' }}>
-            A candle-lit space where strangers release what they feel, and others answer with words, voice, drawings or stickers.
-          </div>
+    </div>
+  );
+};
+
+const HELPLINES = [
+  { where: 'India · Tele-MANAS', num: '14416' },
+  { where: 'US · 988 Lifeline', num: '988' },
+  { where: 'UK · Samaritans', num: '116 123' },
+];
+
+const Close: React.FC = () => {
+  const f = useCurrentFrame();
+  const t = f / FPS;
+  const dur = s(D.close);
+  const voiced = T.close.names.length > 0;
+  const helpAt = voiced ? T.close.at[1] + VO_LEN['close-2'] + 0.7 : 3.4;
+  const lift = interpolate(f, [s(helpAt), s(helpAt + 0.6)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const help = interpolate(f, [s(helpAt + 0.35), s(helpAt + 1.1)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const push = interpolate(f, [0, dur], [1, 1.07]);
+  const heroY = interpolate(t, [0, helpAt + 1], [900, 560], { extrapolateRight: 'clamp' });
+  const heroLit = interpolate(t, [0.2, 1.2], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  return (
+    <Fade dur={dur} outF={24}>
+      <Narration tl={T.close} />
+      <Sky />
+      <AbsoluteFill style={{ transform: `scale(${push})` }}>
+        {CLOSE_RISERS.map(l => {
+          const lt = t - l.start;
+          if (lt < -0.2) return null;
+          const lit = interpolate(lt, [0.3, 1.1], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          const appear = interpolate(lt, [-0.2, 0.5], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          const top = l.y0 - l.speed * Math.max(0, lt);
+          // Lanterns sink back while they pass behind the words, so the words stay clear.
+          const cx = l.x + 60 * l.size;
+          const cy = top + 90 * l.size;
+          const out = Math.max(300 - cx, cx - 1620, 330 - cy, cy - 620, 0);
+          const behind = interpolate(out, [0, 90], [0.15, 1], { extrapolateRight: 'clamp' });
+          const clear = behind + (1 - behind) * lift;
+          return (
+            <div key={l.i} style={{
+              position: 'absolute', left: l.x, top,
+              opacity: appear * clear * (0.45 + l.z * 0.55), filter: l.z < 0.3 ? 'blur(1.6px)' : undefined,
+            }}>
+              <Lantern id={`rise-${l.i}`} palette={PALETTES[l.e]} shape={l.shape} size={l.size} glow={0.55 + l.z * 0.35} seed={l.i} lit={lit} />
+            </div>
+          );
+        })}
+        {/* the first lantern of the night, rising slowly under the words */}
+        <div style={{ position: 'absolute', left: 960 - 60 * 0.95, top: heroY, opacity: 1 - lift * 0.5 }}>
+          <Lantern id="close-hero" palette={['#FFD9A8', '#F08A4B', '#7A2E12']} shape="paper" size={0.95} glow={0.9} lit={heroLit} />
         </div>
       </AbsoluteFill>
-      <AbsoluteFill style={{ justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 36 }}>
-        <div style={{ fontFamily: sans, fontSize: 21, color: C.muted, textAlign: 'center', opacity: logo }}>
-          Ember is a place to be heard, not a replacement for professional care.<br />
-          If you're in danger, call your local helpline: India 14416 · US 988 · UK 116 123
+      {/* keeps the words readable over the lanterns */}
+      <AbsoluteFill style={{ background: 'radial-gradient(ellipse 46% 26% at 50% 40%, rgba(6,4,4,0.6), rgba(6,4,4,0) 100%)' }} />
+      <AbsoluteFill style={{
+        alignItems: 'center', justifyContent: 'center', paddingBottom: 140, gap: 14,
+        opacity: 1 - lift, transform: `translateY(${-lift * 36}px)`,
+      }}>
+        <WordReveal text="Tonight, someone is still awake." at={T.close.at[0]} style={{ color: C.cream, textShadow: '0 4px 30px rgba(0,0,0,0.7)' }} />
+        <WordReveal text="Now, they don't have to be alone with it." at={T.close.at[1]}
+          style={{ color: C.ember, fontWeight: 600, textShadow: `0 0 40px ${C.ember}66, 0 4px 30px rgba(0,0,0,0.7)` }} />
+      </AbsoluteFill>
+      <AbsoluteFill style={{
+        alignItems: 'center', justifyContent: 'center', opacity: help, transform: `translateY(${(1 - help) * 24}px)`,
+      }}>
+        <div style={{
+          padding: '40px 64px 36px', borderRadius: 28, textAlign: 'center',
+          background: 'rgba(14,9,10,0.78)', border: '1px solid rgba(214,106,62,0.35)',
+          boxShadow: `0 30px 100px rgba(0,0,0,0.7), 0 0 80px ${C.ember}22`,
+        }}>
+          <div style={{ fontFamily: sans, fontWeight: 500, fontSize: 22, letterSpacing: 6, textTransform: 'uppercase', color: C.ember }}>
+            If you're in danger right now
+          </div>
+          <div style={{ fontFamily: serif, fontSize: 46, color: C.cream, margin: '14px 0 30px' }}>
+            Please reach out. Someone is there.
+          </div>
+          <div style={{ display: 'flex', gap: 22, justifyContent: 'center' }}>
+            {HELPLINES.map(h => (
+              <div key={h.num} style={{
+                padding: '16px 30px', borderRadius: 18, minWidth: 220,
+                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)',
+              }}>
+                <div style={{ fontFamily: sans, fontSize: 19, color: C.muted, letterSpacing: 1 }}>{h.where}</div>
+                <div style={{ fontFamily: serif, fontWeight: 600, fontSize: 44, color: C.cream, marginTop: 4 }}>{h.num}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontFamily: sans, fontSize: 20, color: C.muted, marginTop: 26 }}>
+            Ember is a place to be heard, not a replacement for professional care.
+          </div>
         </div>
       </AbsoluteFill>
     </Fade>
