@@ -770,7 +770,7 @@ export default function App() {
       {localStorage.getItem('ember_admin') === 'true' && (
         <button
           onClick={wipeSky}
-          className="fixed bottom-14 left-4 z-[100] rounded-full px-3 py-1.5 text-xs font-medium shadow-md border transition-colors"
+          className="fixed top-16 left-3 sm:top-20 sm:left-7 z-[100] rounded-full px-3 py-1.5 text-xs font-medium shadow-md border transition-colors"
           style={{ background: 'rgba(255,255,255,0.85)', color: '#b3261e', borderColor: 'rgba(179,38,30,0.35)' }}
           title="Admin: delete every lantern and reply"
         >
