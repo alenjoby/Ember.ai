@@ -87,11 +87,12 @@ export const ConnectionThreads = React.memo(React.forwardRef<ConnectionThreadsHa
         const key = [a.id, b.id].sort().join('__');
         if (map.has(key)) continue;
 
-        // Coordinates center on lantern flame: card width = 250, lamp is centered at x: 125, y: 82
+        // Threads hang from the tip of each lantern's stick: card width = 250, so the stick is at
+        // x: 125, and its tip is the top of the lantern (y: 0; a pixel lower so it meets the stick).
         const ax = (a.x || 0) + 125;
-        const ay = (a.y || 0) + 82;
+        const ay = (a.y || 0) + 1;
         const bx = (b.x || 0) + 125;
-        const by = (b.y || 0) + 82;
+        const by = (b.y || 0) + 1;
 
         const path = threadPath(ax, ay, bx, by);
         const color = a.lantern?.palette?.[0] || EMOTION_COLORS[a.emotion] || '#d66a3e';
